@@ -2,11 +2,13 @@
 
 ## Overview
 
-DataClass uses Neon Lakebase Postgres. Migration `database/migrations/0001_dataclass_foundation.sql` defines the V1 application schema in `public`. It was validated on the Neon branch `dataclass-step-2`, created from `production`, and then applied transactionally to production. Production validation confirmed an exact application-schema match between both branches and no seeded application data. The development branch remains available for review.
+DataClass uses Neon Lakebase Postgres. Migration `database/migrations/0001_dataclass_foundation.sql` defines the V1 application foundation in `public`. It was validated on the Neon branch `dataclass-step-2`, created from `production`, and then applied transactionally to production. Production validation confirmed an exact application-schema match and no seeded application data.
+
+`0002_auth_roles_rls.sql` adds the secure authenticated-user bootstrap and own-profile/own-role policies. `0003_multi_teacher_architecture.sql` adds class- and module-level teacher assignments. Both were validated on `dataclass-step-3` and applied transactionally to production. Production and the development branch have matching application/security schemas; development-only identity and role data was not copied.
 
 Neon Auth is the identity provider. Inspection of the linked project confirmed that the canonical user record is `neon_auth."user"`, whose `id` is a UUID primary key. `public.profiles.id` references that exact column. DataClass does not duplicate authentication users or store passwords.
 
-Profile creation/synchronization is deferred to Step 3. No database trigger writes into `public.profiles` from the managed Neon Auth schema because the application auth lifecycle has not yet been integrated and validated.
+In production and development, `public.bootstrap_current_user()` securely identifies the current Neon Auth user through `auth.uid()`, reads authoritative identity data from `neon_auth."user"`, creates or refreshes the linked profile, and assigns `student` only when the user has no application role. It is idempotent, accepts no user identifier, never grants `teacher`, uses `SECURITY DEFINER` with `search_path = pg_catalog`, and is executable only by `authenticated`. Teacher roles remain trusted/admin-provisioned. No trigger writes from the managed Neon Auth schema.
 
 ## Tables
 
@@ -14,10 +16,12 @@ Profile creation/synchronization is deferred to Step 3. No database trigger writ
 | --- | --- |
 | `profiles` | Application-facing name, normalized email, and avatar metadata linked one-to-one to Neon Auth users. |
 | `user_roles` | Teacher/student role assignments; a composite key permits multiple roles per user. |
-| `classes` | Course groups or batches owned by a teacher. |
+| `classes` | Course groups or batches. `teacher_id` is the canonical class owner/lead teacher. |
+| `class_teachers` | All owner/instructor profiles participating in a class. |
 | `class_members` | Unique student membership within a class. Attendance is intentionally not represented. |
 | `class_invitations` | Normalized email invitations and their lifecycle; no email delivery is implemented. |
 | `modules` | Ordered, class-specific course sections. Topic names are content, not platform constraints. |
+| `module_teachers` | One or more teacher profiles responsible for an individual module. |
 | `lessons` | Ordered physical-classroom lessons and optional video metadata. |
 | `lesson_resources` | Metadata for future stored files or external lesson links. |
 | `assignments` | Class-level or optional lesson-linked tasks, with no numeric grading fields. |
@@ -30,7 +34,11 @@ Profile creation/synchronization is deferred to Step 3. No database trigger writ
 
 - `profiles.id` references the verified `neon_auth."user".id` UUID primary key.
 - `user_roles` uses primary key `(user_id, role)` and restricts V1 roles to `teacher` and `student`.
-- Classes reference their teacher profile; memberships uniquely constrain `(class_id, student_id)`.
+- `classes.teacher_id` references the canonical class owner/lead teacher. It does not imply that the owner teaches every module.
+- `class_teachers` uniquely constrains `(class_id, teacher_id)`, permits only `owner` or `instructor`, and permits at most one `owner` row per class. When class workflows are implemented, the service must keep that owner row consistent with `classes.teacher_id`.
+- `module_teachers` uniquely constrains `(module_id, teacher_id)`, allowing a module to have multiple teachers without duplicate assignments.
+- PostgreSQL cannot express "the referenced profile must already have a teacher row in `user_roles`" as a normal foreign key or row-local check constraint. Trusted administration and future application services must validate the teacher role before class/module assignment and must ensure a module teacher also participates in that module's class through `class_teachers`. No trigger grants or elevates roles.
+- Class memberships uniquely constrain `(class_id, student_id)`.
 - Pending invitations are unique per `(class_id, email)`. Profile and invitation emails must be trimmed lowercase values.
 - Module, lesson, and resource positions are non-negative and unique within their parent. Position constraints are deferrable to support reordering.
 - Status checks constrain each lifecycle to its documented values without using PostgreSQL enum types.
@@ -42,17 +50,15 @@ Profile creation/synchronization is deferred to Step 3. No database trigger writ
 
 ## Delete behavior
 
-Dependent content uses `ON DELETE CASCADE` where it has no independent meaning: class invitations and modules, module lessons, lesson resources, assignment resources, user role rows, submission files, and submission feedback.
+Dependent content uses `ON DELETE CASCADE` where it has no independent meaning: class invitations and modules, class-teacher links, module-teacher links, module lessons, lesson resources, assignment resources, user role rows, submission files, and submission feedback.
 
-Important identity and academic-history relationships use `ON DELETE RESTRICT`: Auth user to profile, teacher to class, student to class membership, assignment to existing submissions, user to submission, and teacher to feedback. Classes with memberships and assignments with submissions therefore cannot be casually deleted; lifecycle statuses such as `archived` should be preferred.
+Important identity and academic-history relationships use `ON DELETE RESTRICT`: Auth user to profile, class owner to class, teacher profiles to class/module teacher links, student to class membership, assignment to existing submissions, user to submission, and teacher to feedback. Deleting a class or module removes its participation links, but deleting a profile cannot erase the class or module itself. Classes with memberships and assignments with submissions therefore cannot be casually deleted; lifecycle statuses such as `archived` should be preferred.
 
 Deleting a lesson uses `ON DELETE SET NULL` for its optional assignment link. Deleting a class can cascade its empty course structure and assignments, but membership and submission restrictions prevent erasing active or historical participation transitively.
 
 ## Row Level Security
 
-RLS is enabled on all 13 public application tables. No policies are present in Step 2, so Data API/application roles receive the secure default deny behavior rather than anonymous or permissive access. Database owners retain PostgreSQL's normal owner bypass for migrations and administration.
-
-Role-aware policies are intentionally deferred to Step 3, when Neon Auth session behavior and the Data API are integrated. Production inspection found no current `auth.user_id()` function. Step 3 must enable/inspect the actual Neon Data API authorization infrastructure and validate the authenticated-user function before policies reference it. No Supabase functions or conventions are used.
+RLS is enabled on all 15 production and development application tables. `profiles` and `user_roles` have authenticated own-row SELECT policies using the validated UUID-returning `auth.uid()` helper. They have no client write policies, and role elevation is unavailable to the browser. `class_teachers` and `module_teachers` have no policies and therefore remain default deny. All other feature tables also remain default deny until their real workflows are implemented. No anonymous, permissive, `USING (true)`, or `WITH CHECK (true)` policy is used. Database owners retain PostgreSQL's normal owner bypass for migrations and trusted administration.
 
 ## File and video storage
 
@@ -63,4 +69,4 @@ Role-aware policies are intentionally deferred to Step 3, when Neon Auth session
 
 ## Environment and migration safety
 
-Local connection values are held in ignored `.env.local` variables such as `DATABASE_URL` and `DATABASE_URL_UNPOOLED`; documentation and source files contain no credentials. Schema migrations use direct/unpooled connections and must first be tested on a child branch. Migration `0001` is present in production; future migrations require the same explicit branch validation and production-application process.
+Local connection values are held in ignored `.env.local` variables such as `DATABASE_URL` and `DATABASE_URL_UNPOOLED`; documentation and source files contain no credentials. Schema migrations use direct/unpooled connections and must first be tested on a child branch. Migrations `0001`, `0002`, and `0003` are present and validated in production. The retained `dataclass-step-3` branch remains the Step 3 rollback/reference environment.

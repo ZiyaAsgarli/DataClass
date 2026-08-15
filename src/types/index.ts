@@ -3,6 +3,13 @@ import type { LucideIcon } from 'lucide-react'
 export type UserRole = 'teacher' | 'student'
 export type LessonStatus = 'completed' | 'current' | 'locked' | 'upcoming'
 
+export interface AuthProfile {
+  id: string
+  fullName: string
+  email: string
+  avatarUrl: string | null
+}
+
 export interface NavItem { label: string; href?: string; icon: LucideIcon }
 export interface StatCard { label: string; value: string; change: string; tone: 'green' | 'blue' | 'amber' | 'violet'; icon: LucideIcon }
 export interface CourseModule { name: string; progress: number; locked?: boolean }
