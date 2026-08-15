@@ -3,7 +3,7 @@
 1. Step 1 — Foundation & UI Skeleton
 2. Step 2 — Neon Project + Database Foundation — **Complete**
 3. Step 3 — Authentication + Role System — **Complete**
-4. Step 4 — Class Management + Student Invitations
+4. Step 4 — Class Management + Student Invitations — **Complete**
 5. Step 5 — Course Modules + Lessons
 6. Step 6 — Lesson Resources + Video
 7. Step 7 — Assignment System
@@ -15,4 +15,4 @@
 13. Step 13 — Responsive QA + UX Polish
 14. Step 14 — Production Deployment
 
-Steps 1 through 3 are complete. Step 3 delivered Neon Managed Auth with Google OAuth, secure default-student bootstrap, trusted teacher provisioning, multi-role routing, and the multi-teacher class/module architecture. Migrations `0002` and `0003` were validated on `dataclass-step-3`, applied transactionally to production, and verified there without copying development test data. The next planned major step is Step 4 — Class Management + Student Invitations.
+Steps 1 through 4 are complete. Step 3 delivered Neon Managed Auth with Google OAuth, secure default-student bootstrap, trusted teacher provisioning, multi-role routing, and the multi-teacher class/module architecture. Step 4 delivered real class management, owner-controlled bulk invitations, authenticated automatic invitation claiming, student membership views, participating-instructor management, two-real-account E2E validation, and the React StrictMode single-flight authentication initialization fix. Its validated schema/security is present in production, while `dataclass-step-4` remains available for reference. Step 5 has not started.

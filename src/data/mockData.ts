@@ -11,7 +11,7 @@ export const teacherNav: NavItem[] = [
 
 export const studentNav: NavItem[] = [
   { label: 'Overview', href: '/student', icon: LayoutDashboard },
-  { label: 'My Classes', href: '/student/classes/demo-class', icon: BookOpen },
+  { label: 'My Classes', href: '/student/classes', icon: BookOpen },
   { label: 'Assignments', icon: FileCheck2 },
   { label: 'Progress', icon: LineChart },
 ]

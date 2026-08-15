@@ -18,3 +18,55 @@ export interface ActivityItem { id: string; title: string; time: string; kind: '
 export interface Deadline { id: string; title: string; module: string; date: string; submissions: string; status?: string }
 export interface Lesson { id: string; number: string; title: string; status: LessonStatus }
 export interface ModuleLessons { name: string; description: string; progress: number; lessons: Lesson[]; upcoming?: boolean }
+
+export type ClassStatus = 'active' | 'archived'
+export type ClassAccess = 'owner' | 'instructor' | 'student'
+
+export interface ManagedClass {
+  id: string
+  name: string
+  description: string | null
+  status: string
+  teacherRole?: 'owner' | 'instructor'
+  ownerName?: string
+  studentCount: number
+  instructorCount?: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ClassOverview extends ManagedClass {
+  ownerId: string
+  ownerName: string
+  ownerEmail: string
+  currentAccess: ClassAccess
+  instructorCount: number
+}
+
+export interface ClassStudent {
+  membershipId: string
+  studentId: string
+  fullName: string
+  email: string
+  status: string
+  joinedAt: string
+}
+
+export interface ClassInvitation {
+  id: string
+  email: string
+  status: string
+  createdAt: string
+  acceptedAt: string | null
+  expiresAt: string | null
+}
+
+export interface ClassInstructor {
+  relationshipId: string
+  teacherId: string
+  fullName: string
+  email: string
+  avatarUrl: string | null
+  role: 'owner' | 'instructor'
+  createdAt: string
+}

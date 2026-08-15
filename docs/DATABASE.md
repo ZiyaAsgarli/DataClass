@@ -6,6 +6,8 @@ DataClass uses Neon Lakebase Postgres. Migration `database/migrations/0001_datac
 
 `0002_auth_roles_rls.sql` adds the secure authenticated-user bootstrap and own-profile/own-role policies. `0003_multi_teacher_architecture.sql` adds class- and module-level teacher assignments. Both were validated on `dataclass-step-3` and applied transactionally to production. Production and the development branch have matching application/security schemas; development-only identity and role data was not copied.
 
+`0004_class_management.sql` introduces secure class-management RPCs and the first feature-specific RLS policies. It was validated with two real Google identities on `dataclass-step-4`, then applied transactionally to production. Production and development have matching Step 4 function bodies, policies, grants, and RLS state; development-only class, invitation, membership, profile, and role data was not copied.
+
 Neon Auth is the identity provider. Inspection of the linked project confirmed that the canonical user record is `neon_auth."user"`, whose `id` is a UUID primary key. `public.profiles.id` references that exact column. DataClass does not duplicate authentication users or store passwords.
 
 In production and development, `public.bootstrap_current_user()` securely identifies the current Neon Auth user through `auth.uid()`, reads authoritative identity data from `neon_auth."user"`, creates or refreshes the linked profile, and assigns `student` only when the user has no application role. It is idempotent, accepts no user identifier, never grants `teacher`, uses `SECURITY DEFINER` with `search_path = pg_catalog`, and is executable only by `authenticated`. Teacher roles remain trusted/admin-provisioned. No trigger writes from the managed Neon Auth schema.
@@ -40,6 +42,9 @@ In production and development, `public.bootstrap_current_user()` securely identi
 - PostgreSQL cannot express "the referenced profile must already have a teacher row in `user_roles`" as a normal foreign key or row-local check constraint. Trusted administration and future application services must validate the teacher role before class/module assignment and must ensure a module teacher also participates in that module's class through `class_teachers`. No trigger grants or elevates roles.
 - Class memberships uniquely constrain `(class_id, student_id)`.
 - Pending invitations are unique per `(class_id, email)`. Profile and invitation emails must be trimmed lowercase values.
+- `create_class()` atomically creates an active class and its owner `class_teachers` row; it derives ownership from `auth.uid()` and requires an existing teacher role.
+- `claim_my_class_invitations()` accepts no identity arguments. It reads the authenticated Neon user's authoritative email, creates or reactivates that user's membership, and accepts matching pending invitations idempotently.
+- Instructor lookup is performed inside `add_class_instructor_by_email()`. Only the class owner can call it, and the target profile must already hold a trusted `teacher` role. The function never grants roles or exposes general profile enumeration.
 - Module, lesson, and resource positions are non-negative and unique within their parent. Position constraints are deferrable to support reordering.
 - Status checks constrain each lifecycle to its documented values without using PostgreSQL enum types.
 - `assignments.lesson_id` is optional. Deleting a lesson sets it to null so a class-level assignment can remain.
@@ -58,7 +63,16 @@ Deleting a lesson uses `ON DELETE SET NULL` for its optional assignment link. De
 
 ## Row Level Security
 
-RLS is enabled on all 15 production and development application tables. `profiles` and `user_roles` have authenticated own-row SELECT policies using the validated UUID-returning `auth.uid()` helper. They have no client write policies, and role elevation is unavailable to the browser. `class_teachers` and `module_teachers` have no policies and therefore remain default deny. All other feature tables also remain default deny until their real workflows are implemented. No anonymous, permissive, `USING (true)`, or `WITH CHECK (true)` policy is used. Database owners retain PostgreSQL's normal owner bypass for migrations and trusted administration.
+RLS is enabled on all 15 application tables. In production, `profiles` and `user_roles` expose only the authenticated user's own rows. `classes`, `class_members`, `class_invitations`, and `class_teachers` have narrow SELECT policies for authorized owners, participating instructors, or members. Mutations are available only through locked-down `SECURITY DEFINER` functions with `search_path = pg_catalog`; no direct client mutation policy exists. Policy helper functions avoid recursive RLS evaluation. Student lists and instructor email lookup use scoped functions rather than weakening profile privacy. No anonymous, `USING (true)`, or `WITH CHECK (true)` policy is used. Modules and every later feature table remain default deny.
+
+### Step 4 function boundary
+
+- Class owners may update/archive a class, manage pending student invitations, and add/remove additional instructors.
+- Participating instructors may view class details and membership but cannot manage ownership, invitations, or instructors.
+- Students may list and open only classes for which their own active/completed membership exists.
+- `invited_by`, class owner, claim email, and claim student ID are always derived database-side; browser input cannot spoof them.
+- Invitation input is normalized to lowercase, existing members and the owner are rejected, and the partial unique index prevents duplicate pending invitations.
+- `remove_class_instructor()` only removes rows with role `instructor`; the owner row cannot be removed and ownership transfer is not implemented.
 
 ## File and video storage
 
@@ -69,4 +83,4 @@ RLS is enabled on all 15 production and development application tables. `profile
 
 ## Environment and migration safety
 
-Local connection values are held in ignored `.env.local` variables such as `DATABASE_URL` and `DATABASE_URL_UNPOOLED`; documentation and source files contain no credentials. Schema migrations use direct/unpooled connections and must first be tested on a child branch. Migrations `0001`, `0002`, and `0003` are present and validated in production. The retained `dataclass-step-3` branch remains the Step 3 rollback/reference environment.
+Local connection values are held in ignored `.env.local` variables such as `DATABASE_URL` and `DATABASE_URL_UNPOOLED`; documentation and source files contain no credentials. Schema migrations use direct/unpooled connections and must first be tested on a child branch. Migrations `0001` through `0004` are present and validated in production. The retained `dataclass-step-3` and `dataclass-step-4` branches remain rollback/reference environments; `dataclass-step-4` contains development-only E2E data that was never promoted.

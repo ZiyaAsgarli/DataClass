@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { BetterAuthSession, BetterAuthUser } from '@neondatabase/neon-js/auth/types'
 import { AuthContext, type AuthContextValue } from '@/context/auth-context'
 import { neonClient } from '@/lib/neon'
@@ -30,6 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<UserRole[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const initializationRef = useRef<Promise<void> | null>(null)
 
   const clearAuth = useCallback(() => {
     setSession(null)
@@ -38,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRoles([])
   }, [])
 
-  const resolveAuth = useCallback(async () => {
+  const performAuthResolution = useCallback(async () => {
     setLoading(true)
     setError(null)
 
@@ -69,6 +70,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('No application role is assigned.')
       }
 
+      const claimResult = await neonClient.rpc('claim_my_class_invitations')
+      if (claimResult.error) {
+        throw claimResult.error
+      }
+
       setSession(sessionResult.data.session)
       setUser(sessionResult.data.user)
       setProfile({
@@ -85,6 +91,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false)
     }
   }, [clearAuth])
+
+  const resolveAuth = useCallback(() => {
+    if (initializationRef.current) {
+      return initializationRef.current
+    }
+
+    const initialization = performAuthResolution().finally(() => {
+      if (initializationRef.current === initialization) {
+        initializationRef.current = null
+      }
+    })
+
+    initializationRef.current = initialization
+    return initialization
+  }, [performAuthResolution])
 
   useEffect(() => {
     void resolveAuth()

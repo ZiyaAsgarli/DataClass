@@ -1,88 +1,26 @@
-import { ArrowRight, CalendarDays } from "lucide-react";
-import { Link } from "react-router-dom";
-import { ActivityList } from "@/components/common/ActivityList";
-import { SectionHeader } from "@/components/common/SectionHeader";
-import { ClassCard } from "@/components/teacher/ClassCard";
-import { StatGrid } from "@/components/teacher/StatGrid";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { classes, deadlines, teacherActivity } from "@/data/mockData";
-import { useAuth } from "@/hooks/useAuth";
-import { AppShell } from "@/layouts/AppShell";
+import { useCallback } from 'react'
+import { ArrowRight, BookOpen, ClipboardCheck, Users } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { EmptyState, ErrorState, LoadingState } from '@/components/common/DataState'
+import { SectionHeader } from '@/components/common/SectionHeader'
+import { ClassCard } from '@/components/teacher/ClassCard'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { useAsyncData } from '@/hooks/useAsyncData'
+import { useAuth } from '@/hooks/useAuth'
+import { AppShell } from '@/layouts/AppShell'
+import { listTeacherClasses } from '@/services/classService'
 
 export function TeacherDashboardPage() {
-  const { profile } = useAuth();
-  const firstName = profile?.fullName.split(/\s+/)[0] || "Teacher";
-  return (
-    <AppShell role="teacher" title="Overview">
-      <div className="animate-enter">
-        <div className="mb-8">
-          <p className="text-sm font-medium text-primary">Friday, August 14</p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">
-            Good morning, {firstName}
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Here’s what’s happening across your classes today.
-          </p>
-        </div>
-        <StatGrid />
-      </div>
-      <div className="animate-enter-delay mt-8 grid gap-8 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)]">
-        <section>
-          <SectionHeader
-            title="Recent Classes"
-            description="Your most recently active learning spaces"
-            action={
-              <Button variant="ghost" size="sm" asChild>
-                <Link to="/teacher/classes">
-                  View all <ArrowRight />
-                </Link>
-              </Button>
-            }
-          />
-          <ClassCard course={classes[0]} featured />
-        </section>
-        <section>
-          <SectionHeader
-            title="Recent Activity"
-            description="Latest updates from your classroom"
-          />
-          <Card className="p-5">
-            <ActivityList items={teacherActivity} />
-          </Card>
-        </section>
-      </div>
-      <section className="mt-8">
-        <SectionHeader
-          title="Upcoming Deadlines"
-          description="Assignments due over the next two weeks"
-        />
-        <Card className="overflow-hidden">
-          <div className="divide-y">
-            {deadlines.map((item) => (
-              <div
-                key={item.id}
-                className="flex flex-col gap-3 p-4 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between sm:px-5"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                    <CalendarDays className="size-4" />
-                  </span>
-                  <div>
-                    <p className="text-sm font-medium">{item.title}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {item.module} · {item.submissions}
-                    </p>
-                  </div>
-                </div>
-                <p className="ml-12 text-xs font-semibold sm:ml-0">
-                  Due {item.date}
-                </p>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </section>
-    </AppShell>
-  );
+  const { profile } = useAuth()
+  const firstName = profile?.fullName.split(/\s+/)[0] || 'Teacher'
+  const loader = useCallback(() => listTeacherClasses(), [])
+  const { data, loading, error, reload } = useAsyncData(loader)
+  const active = data?.filter((course) => course.status === 'active') ?? []
+  const students = active.reduce((total, course) => total + course.studentCount, 0)
+  return <AppShell role="teacher" title="Overview"><div className="animate-enter"><div className="mb-8"><p className="text-sm font-medium text-primary">Teaching workspace</p><h1 className="mt-2 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">Good morning, {firstName}</h1><p className="mt-2 text-sm text-muted-foreground">Manage your live DataClass cohorts from one place.</p></div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Metric icon={BookOpen} label="Active Classes" value={loading ? '—' : active.length} /><Metric icon={Users} label="Active Students" value={loading ? '—' : students} /><Metric icon={ClipboardCheck} label="Assignments" value="Coming next" /><Metric icon={ClipboardCheck} label="Reviews" value="Coming later" /></div></div><section className="animate-enter-delay mt-8"><SectionHeader title="Recent Classes" description="Your real DataClass learning spaces" action={<Button variant="ghost" size="sm" asChild><Link to="/teacher/classes">View all <ArrowRight /></Link></Button>} />{loading ? <LoadingState /> : error ? <ErrorState retry={() => void reload()} /> : !data?.length ? <EmptyState title="No classes yet" description="Create your first class to begin inviting students." action={<Button asChild><Link to="/teacher/classes">Create a class</Link></Button>} /> : <div className="grid gap-5 xl:grid-cols-2">{data.slice(0, 2).map((course) => <ClassCard key={course.id} course={course} />)}</div>}</section></AppShell>
+}
+
+function Metric({ icon: Icon, label, value }: { icon: typeof BookOpen; label: string; value: string | number }) {
+  return <Card className="p-5"><span className="flex size-9 items-center justify-center rounded-lg bg-accent text-primary"><Icon className="size-4" /></span><p className="mt-4 text-2xl font-semibold">{value}</p><p className="mt-1 text-xs text-muted-foreground">{label}</p></Card>
 }
