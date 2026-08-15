@@ -1,0 +1,16 @@
+import { ArrowRight, BookOpenCheck, CheckCircle2, CircleUserRound as Chrome, Layers3 } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Brand } from '@/components/common/Brand'
+import { ThemeToggle } from '@/components/common/ThemeToggle'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+
+const features = [
+  { icon: Layers3, label: 'Structured courses' },
+  { icon: BookOpenCheck, label: 'Clear next steps' },
+  { icon: CheckCircle2, label: 'Visible progress' },
+]
+
+export function LoginPage() {
+  return <main className="relative min-h-screen overflow-hidden bg-background"><header className="absolute inset-x-0 top-0 z-10 flex h-20 items-center justify-between px-5 sm:px-8 lg:px-12"><Brand /><ThemeToggle /></header><div className="grid min-h-screen lg:grid-cols-[1.1fr_0.9fr]"><section className="flex items-center px-5 pb-16 pt-28 sm:px-8 lg:px-12 xl:px-20"><div className="animate-enter max-w-2xl"><p className="mb-5 text-xs font-semibold uppercase tracking-[0.16em] text-primary">Professional learning, organized</p><h1 className="text-4xl font-semibold leading-[1.08] tracking-[-0.05em] sm:text-5xl xl:text-6xl">Your classes. Lessons. Assignments. <span className="text-muted-foreground">All in one place.</span></h1><p className="mt-6 max-w-lg text-base leading-7 text-muted-foreground">A focused workspace for teachers to guide learning and for students to make steady, visible progress.</p><div className="mt-10 grid max-w-xl gap-4 sm:grid-cols-3">{features.map(({ icon: Icon, label }) => <div key={label} className="flex items-center gap-2.5 text-sm font-medium"><span className="flex size-8 items-center justify-center rounded-lg bg-accent text-accent-foreground"><Icon className="size-4" /></span>{label}</div>)}</div></div></section><section className="relative flex items-center justify-center border-t bg-muted/35 px-5 py-20 lg:border-l lg:border-t-0"><div className="absolute inset-0 opacity-50 [background-image:radial-gradient(var(--border)_1px,transparent_1px)] [background-size:22px_22px]" /><Card className="animate-enter relative w-full max-w-md p-6 shadow-[0_18px_55px_rgba(0,0,0,0.08)] sm:p-8"><div className="mb-8"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Welcome to DataClass</p><h2 className="mt-3 text-2xl font-semibold tracking-[-0.03em]">Sign in to your workspace</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">Use your invited email address to access your classes.</p></div>{/* Authentication and Google OAuth will be implemented in a later project step. */}<Button variant="outline" className="h-11 w-full" disabled><Chrome />Continue with Google</Button><p className="mt-5 text-center text-xs leading-5 text-muted-foreground">Sign-in is intentionally unavailable in this UI preview.</p><div className="my-7 flex items-center gap-3"><span className="h-px flex-1 bg-border" /><span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Preview routes</span><span className="h-px flex-1 bg-border" /></div><div className="grid gap-2 sm:grid-cols-2"><Button variant="secondary" asChild><Link to="/teacher">Teacher <ArrowRight /></Link></Button><Button variant="secondary" asChild><Link to="/student">Student <ArrowRight /></Link></Button></div></Card></section></div></main>
+}
