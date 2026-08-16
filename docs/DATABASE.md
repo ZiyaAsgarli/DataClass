@@ -12,6 +12,8 @@ DataClass uses Neon Lakebase Postgres. Migration `database/migrations/0001_datac
 
 `0006_lesson_video.sql` adds canonical YouTube URL validation and scoped lesson-recording read/write functions. It was database- and real-browser-validated on `dataclass-step-6`, then applied transactionally to production. Production and development match for Step 6A function bodies, grants, constraints, and RLS state; no development identities, course content, or recording metadata was copied. The migration reuses the existing lesson video columns, creates no content rows, performs no network requests, and grants no direct lesson writes.
 
+`0007_lesson_resources.sql` extends `lesson_resources` with B2 provider, pending/ready lifecycle, upload time, and ETag metadata; adds deterministic protected object paths; and exposes narrowly scoped prepare, finalize, list, download-authorization, and delete-authorization RPCs. It was database- and real-browser-validated on `dataclass-step-6b`, then applied transactionally to production. Production matches the development branch for Step 6B columns, constraints, indexes, function bodies, grants, policies, and RLS state; no development resource, course, or identity data was copied.
+
 Neon Auth is the identity provider. Inspection of the linked project confirmed that the canonical user record is `neon_auth."user"`, whose `id` is a UUID primary key. `public.profiles.id` references that exact column. DataClass does not duplicate authentication users or store passwords.
 
 In production and development, `public.bootstrap_current_user()` securely identifies the current Neon Auth user through `auth.uid()`, reads authoritative identity data from `neon_auth."user"`, creates or refreshes the linked profile, and assigns `student` only when the user has no application role. It is idempotent, accepts no user identifier, never grants `teacher`, uses `SECURITY DEFINER` with `search_path = pg_catalog`, and is executable only by `authenticated`. Teacher roles remain trusted/admin-provisioned. No trigger writes from the managed Neon Auth schema.
@@ -29,7 +31,7 @@ In production and development, `public.bootstrap_current_user()` securely identi
 | `modules` | Ordered, class-specific course sections. Topic names are content, not platform constraints. |
 | `module_teachers` | One or more teacher profiles responsible for an individual module. |
 | `lessons` | Ordered physical-classroom lessons and optional video metadata. |
-| `lesson_resources` | Metadata for future stored files or external lesson links. |
+| `lesson_resources` | Private lesson-file metadata and lifecycle state; file bytes remain in Backblaze B2. |
 | `assignments` | Class-level or optional lesson-linked tasks, with no numeric grading fields. |
 | `assignment_resources` | Metadata for future stored files or external assignment links. |
 | `submissions` | One logical submission per assignment and student. |
@@ -96,14 +98,24 @@ RLS is enabled on all 15 application tables. In production, `profiles` and `user
 - All five Step 6A functions use `SECURITY DEFINER` with `search_path = pg_catalog`. Only the four application RPCs are executable by `authenticated`; anonymous and PUBLIC execution is revoked, and the validation helper is internal.
 - The lesson table retains RLS and has no direct authenticated INSERT, UPDATE, or DELETE grant. Conditional checks keep YouTube URLs canonical while leaving the provider column extensible for future providers.
 
+### Step 6B private-resource security
+
+- `prepare_lesson_resource_upload()` derives the caller through `auth.uid()`, permits only the class owner or assigned module instructor, validates the supported extension and exact resource kind, enforces a non-zero 500 MiB maximum, generates the resource UUID and opaque object path, and creates a `pending` row. It accepts no caller identity or storage path.
+- Finalization is split across `get_lesson_resource_upload_state()` and `finalize_lesson_resource_upload()`. The Worker receives the exact protected path, verifies the object with B2 `HeadObject`, checks its expected size, records only the safe ETag, and then marks the row `ready` with `uploaded_at`.
+- Teacher and student list functions expose only `ready` metadata. Students additionally require active class membership, a visible module, and a published lesson. Pending resources and draft lesson resources remain hidden.
+- Download and delete authorization functions return the exact stored path only after database authorization. Student downloads retain published-lesson membership checks; delete remains limited to the class owner or assigned module instructor. No function accepts a browser-provided object path or user ID.
+- All eight application functions use `SECURITY DEFINER` with `search_path = pg_catalog`, are executable only by `authenticated`, and leave direct `lesson_resources` table writes unavailable. RLS remains enabled and no broad policy was added.
+
 ## File and video storage
 
 - Physical classroom recordings are created with OBS and later uploaded to YouTube as **Unlisted** videos.
 - PostgreSQL stores only provider, URL, duration, publishing, and related metadata. OBS video binaries are never stored in PostgreSQL.
 - Unlisted YouTube is link-accessible, not DRM or private object storage. Application authorization protects lesson metadata but does not make possession of a YouTube link private.
-- Lesson, assignment, and submission files will use future object storage. PostgreSQL stores paths, names, sizes, MIME types, versions, and external URLs only.
-- Object storage, uploads, and YouTube integration are not implemented in Step 2.
+- Step 6B lesson files use a private Backblaze B2 bucket. The Cloudflare Worker holds bucket credentials, forwards the user's Neon bearer token to scoped authorization RPCs, signs five-minute PUT and two-minute GET URLs, and verifies uploads with `HeadObject`. Browser file bytes travel directly to B2; the Worker does not proxy normal file bodies.
+- PostgreSQL stores paths, names, sizes, MIME types, provider/lifecycle data, and safe ETags only. It never stores file bodies, credentials, permanent B2 URLs, or presigned URLs.
+- Supported V1 lesson-resource extensions are `.xlsx`, `.xls`, `.xlsm`, `.csv`, `.tsv`, `.pdf`, `.pbix`, `.pbit`, `.sql`, `.ipynb`, `.py`, `.txt`, `.json`, `.parquet`, `.zip`, `.docx`, and `.pptx`; files must be between 1 byte and 500 MiB. Obvious executable/script installer formats are rejected by the allowlist.
+- Assignment and submission storage remains future work. Pending upload cleanup is deferred maintenance.
 
 ## Environment and migration safety
 
-Local connection values are held in ignored `.env.local` variables such as `DATABASE_URL` and `DATABASE_URL_UNPOOLED`; documentation and source files contain no credentials. Schema migrations use direct/unpooled connections and must first be tested on a child branch. Migrations `0001` through `0006` are present and validated in production. The retained development branches, including `dataclass-step-6`, remain rollback/reference environments; development-only E2E data is never promoted.
+Local connection values are held in ignored `.env.local` variables such as `DATABASE_URL` and `DATABASE_URL_UNPOOLED`; Worker secrets are held in ignored `.dev.vars`. Documentation and source files contain no credentials. Schema migrations use direct/unpooled connections and must first be tested on a child branch. Migrations `0001` through `0007` are present and validated in production. The retained development branches remain rollback/reference environments, and development-only E2E data is never promoted. Cloudflare Worker production deployment and production-origin B2 CORS remain deferred until DataClass has a real deployed origin.

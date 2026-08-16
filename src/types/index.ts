@@ -117,6 +117,18 @@ export interface LessonVideoRecord {
   canManage?: boolean
 }
 
+export interface LessonResourceRecord {
+  id: string
+  title: string
+  resourceKind: string
+  fileName: string
+  fileSizeBytes: number
+  mimeType: string
+  position: number
+  uploadedAt: string
+  canManage?: boolean
+}
+
 export interface ModuleInstructorOption {
   teacherId: string
   fullName: string

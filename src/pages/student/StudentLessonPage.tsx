@@ -3,6 +3,7 @@ import { ArrowLeft, CalendarDays, PlaySquare } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { ErrorState, LoadingState } from '@/components/common/DataState'
 import { YouTubePlayer } from '@/components/common/LessonRecording'
+import { StudentLessonResources } from '@/components/common/LessonResources'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -27,5 +28,5 @@ export function StudentLessonPage() {
 
   <Card className="animate-enter-delay mt-6 p-4 sm:p-6"><div className="mb-4"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Recording</p><h2 className="mt-2 text-lg font-semibold">Classroom lesson recording</h2></div>{video.provider === 'youtube' && video.videoId ? <YouTubePlayer videoId={video.videoId} title={lesson.title} /> : <div className="flex min-h-52 flex-col items-center justify-center rounded-lg bg-muted/50 p-8 text-center"><PlaySquare className="size-8 text-muted-foreground" /><p className="mt-4 font-medium">Recording not available yet.</p><p className="mt-1 text-sm text-muted-foreground">Your teacher can attach the classroom recording when it is ready.</p></div>}</Card>
 
-  <Card className="mt-6 p-5 sm:p-7"><h2 className="font-semibold">Description and notes</h2><p className="mt-4 max-w-3xl whitespace-pre-wrap text-sm leading-7">{lesson.description || 'No lesson description has been added.'}</p></Card><Card className="mt-6 p-5 sm:p-7"><h2 className="font-semibold">Resources</h2><p className="mt-2 text-sm text-muted-foreground">Lesson files will appear here.</p></Card></AppShell>
+  <Card className="mt-6 p-5 sm:p-7"><h2 className="font-semibold">Description and notes</h2><p className="mt-4 max-w-3xl whitespace-pre-wrap text-sm leading-7">{lesson.description || 'No lesson description has been added.'}</p></Card><StudentLessonResources lessonId={lesson.id} /></AppShell>
 }
