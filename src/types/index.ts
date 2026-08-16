@@ -70,3 +70,48 @@ export interface ClassInstructor {
   role: 'owner' | 'instructor'
   createdAt: string
 }
+
+export type ModuleStatus = 'active' | 'completed' | 'archived'
+export type LessonLifecycleStatus = 'draft' | 'published' | 'archived'
+export type ModuleAccess = 'owner' | 'module_instructor' | 'viewer'
+
+export interface CourseModuleRecord {
+  id: string
+  classId: string
+  className?: string
+  title: string
+  description: string | null
+  position: number
+  status: ModuleStatus
+  lessonCount?: number
+  publishedLessonCount: number
+  instructorNames: string[]
+  canManage?: boolean
+  currentAccess?: ModuleAccess
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CourseLessonRecord {
+  id: string
+  moduleId: string
+  classId?: string
+  className?: string
+  moduleTitle?: string
+  title: string
+  description: string | null
+  lessonDate: string | null
+  position: number
+  status: LessonLifecycleStatus
+  publishedAt: string | null
+  currentAccess?: ModuleAccess
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ModuleInstructorOption {
+  teacherId: string
+  fullName: string
+  classRole: 'owner' | 'instructor'
+  assigned: boolean
+}
