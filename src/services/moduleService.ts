@@ -3,6 +3,7 @@ import type {
   CourseLessonRecord,
   CourseModuleRecord,
   LessonLifecycleStatus,
+  LessonVideoRecord,
   ModuleInstructorOption,
   ModuleStatus,
 } from '@/types'
@@ -40,6 +41,16 @@ function mapLesson(row: RpcRow): CourseLessonRecord {
     position: count(row.lesson_position), status: text(row.status) as LessonLifecycleStatus,
     publishedAt: nullableText(row.published_at), currentAccess: row.current_access as CourseLessonRecord['currentAccess'],
     createdAt: text(row.created_at), updatedAt: text(row.updated_at),
+  }
+}
+
+function mapLessonVideo(row: RpcRow, includeUrl = false): LessonVideoRecord {
+  return {
+    provider: row.video_provider === 'youtube' ? 'youtube' : null,
+    videoId: nullableText(row.video_id),
+    videoUrl: includeUrl ? nullableText(row.video_url) : undefined,
+    durationSeconds: row.video_duration_seconds == null ? null : count(row.video_duration_seconds),
+    canManage: typeof row.can_manage === 'boolean' ? row.can_manage : undefined,
   }
 }
 
@@ -137,4 +148,29 @@ export async function getStudentLesson(lessonId: string) {
   const row = (await rpc('get_student_lesson', { target_lesson_id: lessonId }))[0]
   if (!row) throw new Error('Lesson not found.')
   return mapLesson(row)
+}
+
+export async function getTeacherLessonVideo(lessonId: string) {
+  const row = (await rpc('get_teacher_lesson_video', { target_lesson_id: lessonId }))[0]
+  if (!row) throw new Error('Lesson recording state was not returned.')
+  return mapLessonVideo(row, true)
+}
+
+export async function getStudentLessonVideo(lessonId: string) {
+  const row = (await rpc('get_student_lesson_video', { target_lesson_id: lessonId }))[0]
+  if (!row) throw new Error('Lesson recording state was not returned.')
+  return mapLessonVideo(row)
+}
+
+export async function setLessonYouTubeVideo(lessonId: string, youtubeUrl: string) {
+  const row = (await rpc<{ video_id: string; canonical_url: string }>('set_lesson_youtube_video', {
+    target_lesson_id: lessonId,
+    youtube_url: youtubeUrl,
+  }))[0]
+  if (!row?.video_id || !row.canonical_url) throw new Error('Video metadata was not returned.')
+  return { videoId: row.video_id, canonicalUrl: row.canonical_url }
+}
+
+export async function removeLessonVideo(lessonId: string) {
+  await rpc('remove_lesson_video', { target_lesson_id: lessonId })
 }

@@ -10,6 +10,8 @@ DataClass uses Neon Lakebase Postgres. Migration `database/migrations/0001_datac
 
 `0005_modules_lessons.sql` adds the Step 5 module/lesson CRUD, ordering, instructor-assignment, scoped read helpers, and RLS policies. It was validated on `dataclass-step-5` and applied transactionally to production. Production matches the development branch for Step 5 function bodies, policies, constraints, indexes, permissions, and RLS state; no development content or identity data was copied. The migration creates no tables and seeds no content.
 
+`0006_lesson_video.sql` adds canonical YouTube URL validation and scoped lesson-recording read/write functions. It was database- and real-browser-validated on `dataclass-step-6`, then applied transactionally to production. Production and development match for Step 6A function bodies, grants, constraints, and RLS state; no development identities, course content, or recording metadata was copied. The migration reuses the existing lesson video columns, creates no content rows, performs no network requests, and grants no direct lesson writes.
+
 Neon Auth is the identity provider. Inspection of the linked project confirmed that the canonical user record is `neon_auth."user"`, whose `id` is a UUID primary key. `public.profiles.id` references that exact column. DataClass does not duplicate authentication users or store passwords.
 
 In production and development, `public.bootstrap_current_user()` securely identifies the current Neon Auth user through `auth.uid()`, reads authoritative identity data from `neon_auth."user"`, creates or refreshes the linked profile, and assigns `student` only when the user has no application role. It is idempotent, accepts no user identifier, never grants `teacher`, uses `SECURITY DEFINER` with `search_path = pg_catalog`, and is executable only by `authenticated`. Teacher roles remain trusted/admin-provisioned. No trigger writes from the managed Neon Auth schema.
@@ -86,13 +88,22 @@ RLS is enabled on all 15 application tables. In production, `profiles` and `user
 - Teacher and student read helpers expose only scoped content and instructor names; they accept resource IDs but never a caller-controlled user ID. All 21 Step 5 functions are authenticated-only `SECURITY DEFINER` functions with `search_path = pg_catalog`.
 - Direct authenticated inserts, updates, and deletes on `modules`, `lessons`, and `module_teachers` remain unavailable. Their RLS policies are narrow SELECT policies only.
 
+### Step 6A production boundary
+
+- `youtube_video_identity()` accepts strict HTTPS YouTube watch, `youtu.be`, and Shorts URLs with valid 11-character video IDs, then returns a canonical `https://www.youtube.com/watch?v=...` URL. Malformed or lookalike hosts are rejected without fetching any remote URL.
+- `set_lesson_youtube_video()` and `remove_lesson_video()` derive the current user through `auth.uid()` and require `can_manage_module()`, limiting writes to the class owner or an assigned instructor for that lesson's module. Attaching a recording never changes lesson publication status.
+- `get_teacher_lesson_video()` requires teacher access to the lesson. `get_student_lesson_video()` requires active class membership, a visible module state, and a published lesson; it returns the derived video ID without exposing the raw URL to the student UI.
+- All five Step 6A functions use `SECURITY DEFINER` with `search_path = pg_catalog`. Only the four application RPCs are executable by `authenticated`; anonymous and PUBLIC execution is revoked, and the validation helper is internal.
+- The lesson table retains RLS and has no direct authenticated INSERT, UPDATE, or DELETE grant. Conditional checks keep YouTube URLs canonical while leaving the provider column extensible for future providers.
+
 ## File and video storage
 
 - Physical classroom recordings are created with OBS and later uploaded to YouTube as **Unlisted** videos.
 - PostgreSQL stores only provider, URL, duration, publishing, and related metadata. OBS video binaries are never stored in PostgreSQL.
+- Unlisted YouTube is link-accessible, not DRM or private object storage. Application authorization protects lesson metadata but does not make possession of a YouTube link private.
 - Lesson, assignment, and submission files will use future object storage. PostgreSQL stores paths, names, sizes, MIME types, versions, and external URLs only.
 - Object storage, uploads, and YouTube integration are not implemented in Step 2.
 
 ## Environment and migration safety
 
-Local connection values are held in ignored `.env.local` variables such as `DATABASE_URL` and `DATABASE_URL_UNPOOLED`; documentation and source files contain no credentials. Schema migrations use direct/unpooled connections and must first be tested on a child branch. Migrations `0001` through `0005` are present and validated in production. The retained `dataclass-step-3`, `dataclass-step-4`, and `dataclass-step-5` branches remain rollback/reference environments; development-only E2E data is never promoted.
+Local connection values are held in ignored `.env.local` variables such as `DATABASE_URL` and `DATABASE_URL_UNPOOLED`; documentation and source files contain no credentials. Schema migrations use direct/unpooled connections and must first be tested on a child branch. Migrations `0001` through `0006` are present and validated in production. The retained development branches, including `dataclass-step-6`, remain rollback/reference environments; development-only E2E data is never promoted.

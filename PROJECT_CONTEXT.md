@@ -19,7 +19,7 @@ DataClass is a professional digital workspace for an in-person Data Analytics co
 
 The frontend is organized by reusable UI and layout components, role-specific teacher and student components, routed pages, typed domain data, services, hooks, shared utilities, assets, and global styles. `App.tsx` is limited to route composition. Class, module, and lesson management use dedicated typed Neon service layers; later course features remain mock-free or clearly marked as unavailable.
 
-Repository-managed SQL migrations live in `database/migrations`. The current database model is documented in `docs/DATABASE.md`. The workspace is linked to the existing Neon `DataClass` project. Migrations `0001_dataclass_foundation.sql` through `0005_modules_lessons.sql` were validated on isolated Neon branches before transactional production application. The `dataclass-step-3`, `dataclass-step-4`, and `dataclass-step-5` branches remain available for rollback/reference.
+Repository-managed SQL migrations live in `database/migrations`. The current database model is documented in `docs/DATABASE.md`. The workspace is linked to the existing Neon `DataClass` project. Migrations `0001_dataclass_foundation.sql` through `0006_lesson_video.sql` were validated on isolated Neon branches before transactional production application. The `dataclass-step-3`, `dataclass-step-4`, `dataclass-step-5`, and `dataclass-step-6` branches remain available for rollback/reference.
 
 ## Delivery model
 
@@ -46,7 +46,7 @@ Repository-managed SQL migrations live in `database/migrations`. The current dat
 
 ## Intentionally not implemented yet
 
-Real Google authentication, secure profile bootstrap, multi-role loading, route protection, sign-out, class management, owner-controlled bulk invitations, authenticated invitation claiming, membership views, existing-teacher instructor assignment, and Step 5 module/lesson management are complete. Production contains ordered modules, module-level instructor authorization, ordered physical-classroom lessons, the draft/published/archive lifecycle, and published-only student visibility. External invitation email delivery, object storage, uploads, YouTube integration, lesson resources, assignments, and submissions remain intentionally unimplemented.
+Real Google authentication, secure profile bootstrap, multi-role loading, route protection, sign-out, class management, owner-controlled bulk invitations, authenticated invitation claiming, membership views, existing-teacher instructor assignment, Step 5 module/lesson management, and Step 6A YouTube lesson recordings are complete in production. External invitation email delivery, object storage, uploads, lesson file resources, assignments, and submissions remain intentionally unimplemented.
 
 ## Current status
 
@@ -56,7 +56,7 @@ Real Google authentication, secure profile bootstrap, multi-role loading, route 
 - **Completed:** Step 4 — Class Management + Student Invitations
 - **Completed:** Step 5 — Course Modules + Lessons
 - **Migration validation branch retained for review:** `dataclass-step-2`
-- **Production status:** validated 15-table foundation, Neon-authenticated Data API, secure student bootstrap, own-profile/own-role RLS, multi-teacher architecture, Step 4 class management, and Step 5 module/lesson schema and security applied; no application data seeded
+- **Production status:** validated 15-table foundation, Neon-authenticated Data API, secure student bootstrap, own-profile/own-role RLS, multi-teacher architecture, Step 4 class management, Step 5 module/lesson security, and Step 6A YouTube recording metadata security applied; no application data seeded
 - **Step 3 reference branch:** `dataclass-step-3` retained with development-only dual-role test data
 - **Authentication architecture:** Google OAuth, secure default-student bootstrap, trusted teacher provisioning, multi-role routing, and sign-out complete
 - **Multi-teacher architecture:** class owner/lead teacher, participating class instructors, and multiple module instructors supported
@@ -69,5 +69,10 @@ Real Google authentication, secure profile bootstrap, multi-role loading, route 
 - **Step 5 development data:** four real development-only modules and two lessons were created under the existing Step 4 test class; this data must never be promoted to production
 - **Step 5 browser validation:** the real student account sees all four authorized modules and published lessons, cannot see draft lessons, and can open the authorized module and lesson routes; unauthorized access remains denied
 - **Step 5 production promotion:** `0005_modules_lessons.sql` was applied transactionally; production matches `dataclass-step-5` for Step 5 functions, policies, constraints, indexes, permissions, and RLS state while excluding all development data
-- **Known non-blocking issue for final QA / production readiness:** after a full local environment or computer restart, the first authenticated workspace initialization may occasionally show “Workspace setup needs attention.” Selecting “Try again” once immediately succeeds, after which authenticated navigation, refreshes, authorized class/module/lesson access, and published-only visibility remain stable for the session. This issue is **not fixed** in Step 5 and must be revisited during final QA / production readiness. The existing auth and protected-data single-flight guards remain in place; no arbitrary delay, security bypass, or weakened RLS workaround has been added.
-- **Next planned step:** Step 6 — Lesson Resources + Video; it has not started
+- **Step 6A production promotion:** `0006_lesson_video.sql` was applied transactionally to production. Production matches `dataclass-step-6` for functions, grants, constraints, and RLS state while excluding all development identities, course content, and recording metadata.
+- **Step 6A recording authorization:** authorized class owners and assigned module instructors can attach, replace, or remove normalized YouTube metadata without changing lesson status; authorized students receive only the derived video ID for published lessons.
+- **Step 6A browser validation:** the real owner attached a YouTube recording and verified thumbnail, saved state, replace/remove controls, and the safe external link. The real student played the responsive embedded recording on the published lesson while the draft lesson remained hidden.
+- **Step 6A recording model:** teachers upload OBS recordings manually to YouTube as Unlisted. DataClass stores canonical YouTube metadata only and builds student embeds from validated video IDs using `youtube-nocookie.com`; it never uploads, proxies, or fetches video content server-side.
+- **YouTube privacy:** Unlisted videos are link-accessible and are not DRM or cryptographically private storage. DataClass limits metadata access through existing lesson authorization but cannot prevent an authorized viewer from sharing a YouTube link.
+- **Known non-blocking issue for final QA / production readiness:** after a full local environment or computer restart, the first authenticated workspace initialization may occasionally show “Workspace setup needs attention.” Selecting “Try again” once immediately succeeds, after which authenticated navigation, refreshes, authorized class/module/lesson access, and published-only visibility remain stable for the session. This issue is **not fixed** and must be revisited during final QA / production readiness. The existing auth and protected-data single-flight guards remain in place; no arbitrary delay, security bypass, or weakened RLS workaround has been added.
+- **Step 6 boundary:** Step 6A video support is complete in production and `dataclass-step-6` remains available for reference; next is Step 6B lesson file resources, which has not started

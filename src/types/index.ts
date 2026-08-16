@@ -109,6 +109,14 @@ export interface CourseLessonRecord {
   updatedAt: string
 }
 
+export interface LessonVideoRecord {
+  provider: 'youtube' | null
+  videoId: string | null
+  videoUrl?: string | null
+  durationSeconds: number | null
+  canManage?: boolean
+}
+
 export interface ModuleInstructorOption {
   teacherId: string
   fullName: string
