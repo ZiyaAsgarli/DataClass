@@ -6,9 +6,9 @@
 4. Step 4 — Class Management + Student Invitations — **Complete**
 5. Step 5 — Course Modules + Lessons — **Complete**
 6. Step 6 — Lesson Resources + Video — **Complete at application/storage architecture level; Worker production deployment deferred to release preparation**
-7. Step 7 — Assignment System
-8. Step 8 — Student Submission System
-9. Step 9 — Teacher Review + Feedback
+7. Step 7 — Assignments + Student Submissions — **Complete**
+8. Step 8 — Student Submission System — **Core upload/version workflow incorporated into Step 7; future expansion not started**
+9. Step 9 — Teacher Review + Feedback — **Core text feedback/revision workflow incorporated into Step 7; future expansion not started**
 10. Step 10 — Notifications + Activity
 11. Step 11 — Analytics + Progress
 12. Step 12 — Security/RLS Audit
@@ -21,6 +21,6 @@ Step 6A adds secure canonical YouTube URL handling, owner/module-instructor reco
 
 Step 6B private lesson resources were validated on `dataclass-step-6b`: Neon authorizes resource metadata and lifecycle RPCs, a local Cloudflare Worker signs short-lived Backblaze B2 requests and verifies completed uploads, and browsers transfer bytes directly to/from the private bucket. The private bucket has an exact localhost-only PUT/GET/HEAD development CORS rule. Real teacher E2E passed for authenticated upload intent, direct PUT, HeadObject finalization, ready metadata, and download authorization. Real student E2E passed for published-lesson listing, temporary download, file integrity, absence of delete controls, and draft-lesson hiding. Delete authorization and B2 DeleteObject compatibility were verified without deleting the retained E2E resource. Migration `0007_lesson_resources.sql` is now in production with matching schema/security and no application data. The Worker remains undeployed; its production secrets, exact application origin, and production B2 CORS are deferred to deployment/release preparation.
 
-The next major feature work is Assignments + Student Submissions, beginning with Step 7. Step 7 is not started.
+Step 7 is complete. The isolated `dataclass-step-7` branch validated secure assignment lifecycle and resources, server-enforced deadlines, one logical submission per student/assignment, versioned private files, factual teacher roster counts, text feedback, revision requests, resubmission, and reviewed status. The definitive real teacher/student workflow passed through final `Reviewed` state with both submission versions preserved. Migration `0008_assignments_submissions.sql` was applied transactionally to production with exact development schema/security parity and no application data. Numeric grading remains excluded. The Cloudflare Worker remains undeployed pending the real production origin and release configuration. Step 8 has not started.
 
 Known non-blocking issue deferred to final QA / production readiness: after a full local environment or computer restart, the first authenticated workspace initialization may occasionally show “Workspace setup needs attention.” One manual “Try again” succeeds and subsequent authenticated navigation remains stable for that session. This is not considered fixed; no delay, security bypass, or RLS workaround has been introduced.

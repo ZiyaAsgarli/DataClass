@@ -4,7 +4,7 @@ import type { ActivityItem, CourseClass, Deadline, ModuleLessons, NavItem, StatC
 export const teacherNav: NavItem[] = [
   { label: 'Overview', href: '/teacher', icon: LayoutDashboard },
   { label: 'Classes', href: '/teacher/classes', icon: BookOpen },
-  { label: 'Assignments', icon: FileCheck2 },
+  { label: 'Assignments', href: '/teacher/assignments', icon: FileCheck2 },
   { label: 'Students', icon: UsersRound },
   { label: 'Reviews', icon: CheckCircle2 },
 ]
@@ -12,7 +12,7 @@ export const teacherNav: NavItem[] = [
 export const studentNav: NavItem[] = [
   { label: 'Overview', href: '/student', icon: LayoutDashboard },
   { label: 'My Classes', href: '/student/classes', icon: BookOpen },
-  { label: 'Assignments', icon: FileCheck2 },
+  { label: 'Assignments', href: '/student/assignments', icon: FileCheck2 },
   { label: 'Progress', icon: LineChart },
 ]
 

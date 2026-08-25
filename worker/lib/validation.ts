@@ -28,12 +28,7 @@ function fileExtension(fileName: string) {
   return index > 0 ? fileName.slice(index + 1).toLowerCase() : ''
 }
 
-export function validateUploadIntent(value: unknown) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new RequestValidationError('Upload details are required.')
-  }
-  const body = value as Record<string, unknown>
-  const lessonId = requireUuid(body.lessonId, 'Lesson')
+function validateFileInput(body: Record<string, unknown>) {
   const fileName = typeof body.fileName === 'string' ? body.fileName.trim() : ''
   const fileSize = typeof body.fileSize === 'number' ? body.fileSize : Number.NaN
   const mimeType = typeof body.mimeType === 'string' ? body.mimeType.trim().toLowerCase() : ''
@@ -56,8 +51,32 @@ export function validateUploadIntent(value: unknown) {
   if (title.length > 160) {
     throw new RequestValidationError('Resource title must not exceed 160 characters.')
   }
+  return { fileName, fileSize, mimeType, resourceKind, title }
+}
 
-  return { lessonId, fileName, fileSize, mimeType, resourceKind, title }
+function requireObject(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new RequestValidationError('Upload details are required.')
+  }
+  return value as Record<string, unknown>
+}
+
+export function validateUploadIntent(value: unknown) {
+  const body = requireObject(value)
+  const lessonId = requireUuid(body.lessonId, 'Lesson')
+  return { lessonId, ...validateFileInput(body) }
+}
+
+export function validateAssignmentResourceUpload(value: unknown) {
+  const body = requireObject(value)
+  const assignmentId = requireUuid(body.assignmentId, 'Assignment')
+  return { assignmentId, ...validateFileInput(body) }
+}
+
+export function validateSubmissionFileUpload(value: unknown) {
+  const body = requireObject(value)
+  const assignmentId = requireUuid(body.assignmentId, 'Assignment')
+  return { assignmentId, ...validateFileInput(body) }
 }
 
 export function validateResourceRequest(value: unknown) {

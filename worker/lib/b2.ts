@@ -7,6 +7,7 @@ import {
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import type { WorkerEnv } from '../types'
+import { buildAttachmentContentDisposition } from './contentDisposition'
 
 const uploadExpirySeconds = 5 * 60
 const downloadExpirySeconds = 2 * 60
@@ -40,16 +41,11 @@ export async function createUploadUrl(env: WorkerEnv, key: string, contentType: 
   }
 }
 
-function safeDisposition(fileName: string) {
-  const fallback = fileName.replace(/[^A-Za-z0-9._-]+/g, '_') || 'resource'
-  return `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(fileName)}`
-}
-
 export async function createDownloadUrl(env: WorkerEnv, key: string, fileName: string) {
   const downloadUrl = await getSignedUrl(client(env), new GetObjectCommand({
     Bucket: env.B2_BUCKET_NAME,
     Key: key,
-    ResponseContentDisposition: safeDisposition(fileName),
+    ResponseContentDisposition: buildAttachmentContentDisposition(fileName),
   }), { expiresIn: downloadExpirySeconds })
   return {
     downloadUrl,

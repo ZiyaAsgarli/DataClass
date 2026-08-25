@@ -1,7 +1,14 @@
 import { createDownloadUrl, createUploadUrl, deleteObject, inspectObject } from './lib/b2'
 import { callNeonRpc, firstRow, NeonAuthorizationError, requireBearerToken } from './lib/neonAuth'
 import { corsHeaders, emptyResponse, errorResponse, jsonResponse } from './lib/responses'
-import { RequestValidationError, requireUuid, validateResourceRequest, validateUploadIntent } from './lib/validation'
+import {
+  RequestValidationError,
+  requireUuid,
+  validateAssignmentResourceUpload,
+  validateResourceRequest,
+  validateSubmissionFileUpload,
+  validateUploadIntent,
+} from './lib/validation'
 import type { ResourceStorageRow, WorkerEnv } from './types'
 
 async function jsonBody(request: Request) {
@@ -72,6 +79,75 @@ async function removeResource(request: Request, env: WorkerEnv, token: string, r
   return emptyResponse(request, env)
 }
 
+async function createUploadIntent(
+  request: Request,
+  env: WorkerEnv,
+  token: string,
+  rpcName: string,
+  rpcArgs: Record<string, unknown>,
+  idField: 'resource_id' | 'file_id',
+) {
+  const rows = await callNeonRpc<ResourceStorageRow[]>(env, token, rpcName, rpcArgs)
+  const resource = firstRow(rows)
+  const id = resource[idField]
+  if (!id) throw new NeonAuthorizationError(502)
+  const signed = await createUploadUrl(env, resource.storage_path, String(rpcArgs.content_type))
+  return jsonResponse(request, env, {
+    resourceId: id,
+    uploadUrl: signed.uploadUrl,
+    expiresAt: signed.expiresAt,
+    requiredHeaders: signed.requiredHeaders,
+  })
+}
+
+async function finalizeStoredFile(
+  request: Request,
+  env: WorkerEnv,
+  token: string,
+  stateRpc: string,
+  finalizeRpc: string,
+  idArgument: string,
+) {
+  const id = validateResourceRequest(await jsonBody(request))
+  const rows = await callNeonRpc<ResourceStorageRow[]>(env, token, stateRpc, { [idArgument]: id })
+  const resource = firstRow(rows)
+  const object = await inspectObject(env, resource.storage_path)
+  if (object.ContentLength == null || Number(object.ContentLength) !== Number(resource.file_size_bytes)) {
+    return errorResponse(request, env, 409, 'The uploaded object size does not match the expected file.')
+  }
+  await callNeonRpc<null>(env, token, finalizeRpc, {
+    [idArgument]: id,
+    verified_file_size_bytes: Number(object.ContentLength),
+    verified_storage_etag: object.ETag ?? null,
+  })
+  return jsonResponse(request, env, { resourceId: id, status: 'ready' })
+}
+
+async function createStoredFileDownload(
+  request: Request,
+  env: WorkerEnv,
+  token: string,
+  rpcName: string,
+  idArgument: string,
+) {
+  const id = validateResourceRequest(await jsonBody(request))
+  const rows = await callNeonRpc<ResourceStorageRow[]>(env, token, rpcName, { [idArgument]: id })
+  const resource = firstRow(rows)
+  const signed = await createDownloadUrl(env, resource.storage_path, resource.file_name ?? 'resource')
+  return jsonResponse(request, env, { downloadUrl: signed.downloadUrl, expiresAt: signed.expiresAt })
+}
+
+async function removeAssignmentResource(request: Request, env: WorkerEnv, token: string, value: string) {
+  const id = requireUuid(value, 'Resource')
+  const rows = await callNeonRpc<ResourceStorageRow[]>(env, token, 'authorize_assignment_resource_delete', {
+    target_resource_id: id,
+  })
+  const resource = firstRow(rows)
+  await deleteObject(env, resource.storage_path)
+  await callNeonRpc<null>(env, token, 'delete_assignment_resource_metadata', { target_resource_id: id })
+  return emptyResponse(request, env)
+}
+
 export default {
   async fetch(request: Request, env: WorkerEnv) {
     const origin = request.headers.get('Origin')
@@ -96,9 +172,46 @@ export default {
       if (request.method === 'POST' && url.pathname === '/v1/resources/download-url') {
         return await downloadUrl(request, env, token)
       }
+      if (request.method === 'POST' && url.pathname === '/v1/assignment-resources/upload-intent') {
+        const input = validateAssignmentResourceUpload(await jsonBody(request))
+        return await createUploadIntent(request, env, token, 'prepare_assignment_resource_upload', {
+          target_assignment_id: input.assignmentId,
+          original_file_name: input.fileName,
+          expected_file_size_bytes: input.fileSize,
+          content_type: input.mimeType,
+          resource_kind: input.resourceKind,
+          resource_title: input.title || null,
+        }, 'resource_id')
+      }
+      if (request.method === 'POST' && url.pathname === '/v1/assignment-resources/finalize') {
+        return await finalizeStoredFile(request, env, token, 'get_assignment_resource_upload_state', 'finalize_assignment_resource_upload', 'target_resource_id')
+      }
+      if (request.method === 'POST' && url.pathname === '/v1/assignment-resources/download-url') {
+        return await createStoredFileDownload(request, env, token, 'authorize_assignment_resource_download', 'target_resource_id')
+      }
+      if (request.method === 'POST' && url.pathname === '/v1/submission-files/upload-intent') {
+        const input = validateSubmissionFileUpload(await jsonBody(request))
+        return await createUploadIntent(request, env, token, 'prepare_submission_file_upload', {
+          target_assignment_id: input.assignmentId,
+          original_file_name: input.fileName,
+          expected_file_size_bytes: input.fileSize,
+          content_type: input.mimeType,
+          resource_kind: input.resourceKind,
+        }, 'file_id')
+      }
+      if (request.method === 'POST' && url.pathname === '/v1/submission-files/finalize') {
+        return await finalizeStoredFile(request, env, token, 'get_submission_file_upload_state', 'finalize_submission_file_upload', 'target_file_id')
+      }
+      if (request.method === 'POST' && url.pathname === '/v1/submission-files/download-url') {
+        return await createStoredFileDownload(request, env, token, 'authorize_submission_file_download', 'target_file_id')
+      }
       const deleteMatch = url.pathname.match(/^\/v1\/resources\/([0-9a-f-]+)$/i)
       if (request.method === 'DELETE' && deleteMatch) {
         return await removeResource(request, env, token, deleteMatch[1])
+      }
+      const assignmentDeleteMatch = url.pathname.match(/^\/v1\/assignment-resources\/([0-9a-f-]+)$/i)
+      if (request.method === 'DELETE' && assignmentDeleteMatch) {
+        return await removeAssignmentResource(request, env, token, assignmentDeleteMatch[1])
       }
       return errorResponse(request, env, 404, 'Endpoint not found.')
     } catch (error) {

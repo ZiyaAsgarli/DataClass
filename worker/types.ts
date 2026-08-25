@@ -9,7 +9,8 @@ export interface WorkerEnv {
 }
 
 export interface ResourceStorageRow {
-  resource_id: string
+  resource_id?: string
+  file_id?: string
   storage_path: string
   file_name?: string
   file_size_bytes?: number

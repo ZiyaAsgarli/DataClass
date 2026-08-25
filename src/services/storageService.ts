@@ -33,6 +33,8 @@ function mapResource(row: RpcRow): LessonResourceRecord {
   }
 }
 
+export { mapResource }
+
 async function rpc(name: string, args: Record<string, unknown>) {
   const result = await neonClient.rpc(name, args)
   if (result.error) throw result.error
@@ -108,13 +110,23 @@ function putFile(upload: UploadIntent, file: File, onProgress: (percent: number)
 }
 
 export async function uploadLessonResource(lessonId: string, file: File, onProgress: (percent: number) => void) {
+  return uploadPrivateFile('/v1/resources', 'lessonId', lessonId, file, onProgress)
+}
+
+async function uploadPrivateFile(
+  endpoint: string,
+  parentKey: 'lessonId' | 'assignmentId',
+  parentId: string,
+  file: File,
+  onProgress: (percent: number) => void,
+) {
   const validationError = validateResourceFile(file)
   if (validationError) throw new Error(validationError)
   const kind = resourceExtension(file.name)
-  const intent = await workerRequest<UploadIntent>('/v1/resources/upload-intent', {
+  const intent = await workerRequest<UploadIntent>(`${endpoint}/upload-intent`, {
     method: 'POST',
     body: JSON.stringify({
-      lessonId,
+      [parentKey]: parentId,
       fileName: file.name,
       fileSize: file.size,
       mimeType: file.type || 'application/octet-stream',
@@ -123,7 +135,7 @@ export async function uploadLessonResource(lessonId: string, file: File, onProgr
     }),
   })
   await putFile(intent, file, onProgress)
-  await workerRequest<{ resourceId: string; status: 'ready' }>('/v1/resources/finalize', {
+  await workerRequest<{ resourceId: string; status: 'ready' }>(`${endpoint}/finalize`, {
     method: 'POST',
     body: JSON.stringify({ resourceId: intent.resourceId }),
   })
@@ -139,4 +151,36 @@ export async function getLessonResourceDownloadUrl(resourceId: string) {
 
 export async function deleteLessonResource(resourceId: string) {
   await workerRequest<void>(`/v1/resources/${resourceId}`, { method: 'DELETE' })
+}
+
+export async function listTeacherAssignmentResources(assignmentId: string) {
+  return (await rpc('list_teacher_assignment_resources', { target_assignment_id: assignmentId })).map(mapResource)
+}
+
+export async function listStudentAssignmentResources(assignmentId: string) {
+  return (await rpc('list_student_assignment_resources', { target_assignment_id: assignmentId })).map(mapResource)
+}
+
+export async function uploadAssignmentResource(assignmentId: string, file: File, onProgress: (percent: number) => void) {
+  return uploadPrivateFile('/v1/assignment-resources', 'assignmentId', assignmentId, file, onProgress)
+}
+
+export async function getAssignmentResourceDownloadUrl(resourceId: string) {
+  return workerRequest<{ downloadUrl: string; expiresAt: string }>('/v1/assignment-resources/download-url', {
+    method: 'POST', body: JSON.stringify({ resourceId }),
+  })
+}
+
+export async function deleteAssignmentResource(resourceId: string) {
+  await workerRequest<void>(`/v1/assignment-resources/${resourceId}`, { method: 'DELETE' })
+}
+
+export async function uploadSubmissionFile(assignmentId: string, file: File, onProgress: (percent: number) => void) {
+  return uploadPrivateFile('/v1/submission-files', 'assignmentId', assignmentId, file, onProgress)
+}
+
+export async function getSubmissionFileDownloadUrl(fileId: string) {
+  return workerRequest<{ downloadUrl: string; expiresAt: string }>('/v1/submission-files/download-url', {
+    method: 'POST', body: JSON.stringify({ resourceId: fileId }),
+  })
 }

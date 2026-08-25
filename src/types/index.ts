@@ -135,3 +135,68 @@ export interface ModuleInstructorOption {
   classRole: 'owner' | 'instructor'
   assigned: boolean
 }
+
+export type AssignmentStatus = 'draft' | 'published' | 'closed' | 'archived'
+export type SubmissionStatus = 'draft' | 'submitted' | 'late' | 'reviewed' | 'revision_requested' | 'resubmitted'
+
+export interface AssignmentRecord {
+  id: string
+  classId: string
+  className: string
+  lessonId: string | null
+  lessonTitle: string | null
+  title: string
+  description: string | null
+  status: AssignmentStatus
+  dueAt: string | null
+  allowLateSubmission: boolean
+  publishedAt: string | null
+  createdAt?: string
+  updatedAt?: string
+  totalStudents?: number
+  submittedCount?: number
+  lateCount?: number
+  revisionRequestedCount?: number
+  reviewedCount?: number
+  submissionId?: string | null
+  submissionStatus?: SubmissionStatus | null
+  submittedAt?: string | null
+  reviewedAt?: string | null
+  feedbackMessage?: string | null
+}
+
+export interface AssignmentLessonOption {
+  id: string
+  title: string
+  moduleTitle: string
+}
+
+export interface AssignmentRosterEntry {
+  studentId: string
+  fullName: string
+  email: string
+  submissionId: string | null
+  status: SubmissionStatus | null
+  submittedAt: string | null
+  reviewedAt: string | null
+  wasLate: boolean
+}
+
+export interface SubmissionDetail {
+  id: string
+  assignmentId: string
+  assignmentTitle: string
+  studentId: string
+  studentName: string
+  studentEmail: string
+  status: SubmissionStatus
+  submittedAt: string | null
+  reviewedAt: string | null
+  feedbackMessage: string | null
+  canReview: boolean
+  wasLate: boolean
+}
+
+export interface SubmissionFileRecord extends LessonResourceRecord {
+  version: number
+}

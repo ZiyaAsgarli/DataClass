@@ -3,6 +3,7 @@ import { Download, FileArchive, FileSpreadsheet, FileText, Loader2, Trash2, Uplo
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useAsyncData } from '@/hooks/useAsyncData'
+import { formatBytes } from '@/lib/files'
 import {
   deleteLessonResource,
   getLessonResourceDownloadUrl,
@@ -13,20 +14,14 @@ import {
 } from '@/services/storageService'
 import type { LessonResourceRecord } from '@/types'
 
-function formatBytes(value: number) {
-  if (value < 1024) return `${value} B`
-  if (value < 1024 ** 2) return `${(value / 1024).toFixed(1)} KiB`
-  return `${(value / 1024 ** 2).toFixed(value >= 100 * 1024 ** 2 ? 0 : 1)} MiB`
-}
-
 function resourceIcon(kind: string) {
   if (['xlsx', 'xls', 'xlsm', 'csv', 'tsv', 'pbix', 'pbit', 'parquet'].includes(kind)) return FileSpreadsheet
   if (kind === 'zip') return FileArchive
   return FileText
 }
 
-async function startDownload(resource: LessonResourceRecord) {
-  const { downloadUrl } = await getLessonResourceDownloadUrl(resource.id)
+async function startDownload(resource: LessonResourceRecord, getDownloadUrl: (id: string) => Promise<{ downloadUrl: string }>) {
+  const { downloadUrl } = await getDownloadUrl(resource.id)
   const link = document.createElement('a')
   link.href = downloadUrl
   link.download = resource.fileName
@@ -36,16 +31,19 @@ async function startDownload(resource: LessonResourceRecord) {
   link.remove()
 }
 
-function ResourceRows({ resources, canDelete, busyId, onDelete }: {
+export function ResourceRows({ resources, canDelete, busyId, onDelete, getDownloadUrl = getLessonResourceDownloadUrl, emptyTitle = 'No lesson resources yet', emptyDescription = 'Files added for this lesson will appear here.' }: {
   resources: LessonResourceRecord[]
   canDelete: boolean
   busyId: string | null
   onDelete?: (resource: LessonResourceRecord) => void
+  getDownloadUrl?: (id: string) => Promise<{ downloadUrl: string }>
+  emptyTitle?: string
+  emptyDescription?: string
 }) {
   const [downloadId, setDownloadId] = useState<string | null>(null)
   const [error, setError] = useState('')
-  if (resources.length === 0) return <div className="rounded-lg border border-dashed p-7 text-center"><p className="font-medium">No lesson resources yet</p><p className="mt-1 text-sm text-muted-foreground">Files added for this lesson will appear here.</p></div>
-  return <div className="space-y-2">{error && <p className="text-sm text-destructive" role="alert">{error}</p>}{resources.map((resource) => { const Icon = resourceIcon(resource.resourceKind); return <div key={resource.id} className="flex min-w-0 flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex min-w-0 items-center gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted"><Icon className="size-5 text-muted-foreground" /></span><div className="min-w-0"><p className="truncate text-sm font-medium">{resource.title || resource.fileName}</p><p className="mt-0.5 truncate text-xs uppercase text-muted-foreground">{resource.resourceKind} · {formatBytes(resource.fileSizeBytes)}</p></div></div><div className="flex shrink-0 gap-1"><Button size="sm" variant="ghost" disabled={downloadId === resource.id} onClick={() => { setDownloadId(resource.id); setError(''); void startDownload(resource).catch(() => setError('The resource could not be downloaded.')).finally(() => setDownloadId(null)) }}>{downloadId === resource.id ? <Loader2 className="animate-spin" /> : <Download />}Download</Button>{canDelete && onDelete && <Button size="sm" variant="ghost" disabled={busyId === resource.id} onClick={() => onDelete(resource)}>{busyId === resource.id ? <Loader2 className="animate-spin" /> : <Trash2 />}Delete</Button>}</div></div>})}</div>
+  if (resources.length === 0) return <div className="rounded-lg border border-dashed p-7 text-center"><p className="font-medium">{emptyTitle}</p><p className="mt-1 text-sm text-muted-foreground">{emptyDescription}</p></div>
+  return <div className="space-y-2">{error && <p className="text-sm text-destructive" role="alert">{error}</p>}{resources.map((resource) => { const Icon = resourceIcon(resource.resourceKind); return <div key={resource.id} className="flex min-w-0 flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex min-w-0 items-center gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted"><Icon className="size-5 text-muted-foreground" /></span><div className="min-w-0"><p className="truncate text-sm font-medium">{resource.title || resource.fileName}</p><p className="mt-0.5 truncate text-xs uppercase text-muted-foreground">{resource.resourceKind} · {formatBytes(resource.fileSizeBytes)}</p></div></div><div className="flex shrink-0 gap-1"><Button size="sm" variant="ghost" disabled={downloadId === resource.id} onClick={() => { setDownloadId(resource.id); setError(''); void startDownload(resource, getDownloadUrl).catch(() => setError('The resource could not be downloaded.')).finally(() => setDownloadId(null)) }}>{downloadId === resource.id ? <Loader2 className="animate-spin" /> : <Download />}Download</Button>{canDelete && onDelete && <Button size="sm" variant="ghost" disabled={busyId === resource.id} onClick={() => onDelete(resource)}>{busyId === resource.id ? <Loader2 className="animate-spin" /> : <Trash2 />}Delete</Button>}</div></div>})}</div>
 }
 
 export function TeacherLessonResources({ lessonId, canManage }: { lessonId: string; canManage: boolean }) {

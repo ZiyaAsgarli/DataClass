@@ -6,6 +6,6 @@
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
     "APP_ORIGIN": "http://localhost:5173",
-    "NEON_DATA_API_URL": "https://ep-floral-hill-b146us6l.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1"
+    "NEON_DATA_API_URL": "https://ep-steep-truth-b11n2txh.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1"
   }
 }

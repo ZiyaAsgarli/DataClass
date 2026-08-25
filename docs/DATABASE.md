@@ -14,6 +14,8 @@ DataClass uses Neon Lakebase Postgres. Migration `database/migrations/0001_datac
 
 `0007_lesson_resources.sql` extends `lesson_resources` with B2 provider, pending/ready lifecycle, upload time, and ETag metadata; adds deterministic protected object paths; and exposes narrowly scoped prepare, finalize, list, download-authorization, and delete-authorization RPCs. It was database- and real-browser-validated on `dataclass-step-6b`, then applied transactionally to production. Production matches the development branch for Step 6B columns, constraints, indexes, function bodies, grants, policies, and RLS state; no development resource, course, or identity data was copied.
 
+`0008_assignments_submissions.sql` extends the existing assignment-resource and submission-file metadata lifecycles, adds deterministic private object paths and server-authorized assignment/submission RPCs, and opens no direct table writes. It was validated through a definitive two-account workflow on `dataclass-step-7`, then applied transactionally to production. Production matches development for all 29 Step 7 functions, columns, constraints, indexes, grants, policies, and RLS state; no development assignment, file, submission, feedback, identity, or course data was copied.
+
 Neon Auth is the identity provider. Inspection of the linked project confirmed that the canonical user record is `neon_auth."user"`, whose `id` is a UUID primary key. `public.profiles.id` references that exact column. DataClass does not duplicate authentication users or store passwords.
 
 In production and development, `public.bootstrap_current_user()` securely identifies the current Neon Auth user through `auth.uid()`, reads authoritative identity data from `neon_auth."user"`, creates or refreshes the linked profile, and assigns `student` only when the user has no application role. It is idempotent, accepts no user identifier, never grants `teacher`, uses `SECURITY DEFINER` with `search_path = pg_catalog`, and is executable only by `authenticated`. Teacher roles remain trusted/admin-provisioned. No trigger writes from the managed Neon Auth schema.
@@ -58,6 +60,16 @@ In production and development, `public.bootstrap_current_user()` securely identi
 - File sizes and video durations cannot be negative. Submission file versions start at 1.
 - Assignment-to-lesson class consistency must be checked by application services in the later assignment step; the normalized lesson path reaches a class through its module.
 - A shared `public.set_updated_at()` trigger function is attached only to tables with an `updated_at` column.
+
+## Step 7 assignment and submission lifecycle
+
+- Assignments remain class-owned and may optionally reference a lesson. Class owners may manage class-level or lesson-linked assignments; assigned module instructors are limited to lesson-linked assignments in their own modules.
+- New assignments are drafts. Students can list and open only published assignments belonging to active class memberships. Closing or archiving preserves existing submissions.
+- Deadlines use database time. When late work is allowed, submission state records late delivery; when it is disabled, new submission finalization is rejected after the deadline.
+- One logical `submissions` row is retained for each `(assignment_id, student_id)`. `draft_version` stabilizes multi-file preparation, while `submission_files.version` preserves each completed submission or resubmission without overwriting earlier files.
+- The lifecycle is `draft` → `submitted` or `late` → optionally `revision_requested` → `resubmitted` → `reviewed`. `was_late` preserves the factual late flag after later review-state transitions.
+- Feedback is a single editable text note for the V1 review experience. Revision requests require feedback; marking reviewed allows optional feedback. Students cannot write feedback or mutate review state.
+- No score, grade, percentage, GPA, passed/failed, or gradebook column is introduced.
 
 ## Delete behavior
 
@@ -106,6 +118,14 @@ RLS is enabled on all 15 application tables. In production, `profiles` and `user
 - Download and delete authorization functions return the exact stored path only after database authorization. Student downloads retain published-lesson membership checks; delete remains limited to the class owner or assigned module instructor. No function accepts a browser-provided object path or user ID.
 - All eight application functions use `SECURITY DEFINER` with `search_path = pg_catalog`, are executable only by `authenticated`, and leave direct `lesson_resources` table writes unavailable. RLS remains enabled and no broad policy was added.
 
+### Step 7 production security boundary
+
+- All Step 7 mutations and scoped reads use authenticated-only `SECURITY DEFINER` RPCs with `search_path = pg_catalog` and identity derived through `auth.uid()`. No function accepts a caller user/teacher/student identity or a storage path.
+- Assignment-resource and submission-file preparation validates the shared file allowlist, non-zero size, and 500 MiB limit, then creates an opaque database-generated B2 path. Finalization remains contingent on Worker `HeadObject` size verification.
+- Students can prepare files only for their own logical submission, cannot submit after a disallowed deadline, cannot inspect other students, and cannot review themselves. Teachers see non-draft submissions only when they own the class or teach the assignment's linked module.
+- Ready assignment resources are visible to students only for authorized published assignments. Submission files and feedback are visible only to the submitting student and authorized teacher. Pending file metadata is never student-visible.
+- RLS remains enabled on `assignments`, `assignment_resources`, `submissions`, `submission_files`, and `submission_feedback`; their direct authenticated table privileges are revoked and no broad policy was added.
+
 ## File and video storage
 
 - Physical classroom recordings are created with OBS and later uploaded to YouTube as **Unlisted** videos.
@@ -114,8 +134,8 @@ RLS is enabled on all 15 application tables. In production, `profiles` and `user
 - Step 6B lesson files use a private Backblaze B2 bucket. The Cloudflare Worker holds bucket credentials, forwards the user's Neon bearer token to scoped authorization RPCs, signs five-minute PUT and two-minute GET URLs, and verifies uploads with `HeadObject`. Browser file bytes travel directly to B2; the Worker does not proxy normal file bodies.
 - PostgreSQL stores paths, names, sizes, MIME types, provider/lifecycle data, and safe ETags only. It never stores file bodies, credentials, permanent B2 URLs, or presigned URLs.
 - Supported V1 lesson-resource extensions are `.xlsx`, `.xls`, `.xlsm`, `.csv`, `.tsv`, `.pdf`, `.pbix`, `.pbit`, `.sql`, `.ipynb`, `.py`, `.txt`, `.json`, `.parquet`, `.zip`, `.docx`, and `.pptx`; files must be between 1 byte and 500 MiB. Obvious executable/script installer formats are rejected by the allowlist.
-- Assignment and submission storage remains future work. Pending upload cleanup is deferred maintenance.
+- Step 7 reuses the same private B2/Worker design for assignment resources and versioned submission files. Pending upload cleanup is deferred maintenance.
 
 ## Environment and migration safety
 
-Local connection values are held in ignored `.env.local` variables such as `DATABASE_URL` and `DATABASE_URL_UNPOOLED`; Worker secrets are held in ignored `.dev.vars`. Documentation and source files contain no credentials. Schema migrations use direct/unpooled connections and must first be tested on a child branch. Migrations `0001` through `0007` are present and validated in production. The retained development branches remain rollback/reference environments, and development-only E2E data is never promoted. Cloudflare Worker production deployment and production-origin B2 CORS remain deferred until DataClass has a real deployed origin.
+Local connection values are held in ignored `.env.local` variables such as `DATABASE_URL` and `DATABASE_URL_UNPOOLED`; Worker secrets are held in ignored `.dev.vars`. Documentation and source files contain no credentials. Schema migrations use direct/unpooled connections and must first be tested on a child branch. Migrations `0001` through `0008` are present and validated in production. The retained development branches remain rollback/reference environments, and development-only E2E data is never promoted. Cloudflare Worker production deployment and production-origin B2 CORS remain deferred until DataClass has a real deployed origin.
