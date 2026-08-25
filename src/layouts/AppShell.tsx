@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Header } from '@/components/layout/Header'
 import { Sidebar } from '@/components/layout/Sidebar'
-import { studentNav, teacherNav } from '@/data/mockData'
+import { studentNav, teacherNav } from '@/data/navigation'
 import { cn } from '@/lib/utils'
 import type { UserRole } from '@/types'
 

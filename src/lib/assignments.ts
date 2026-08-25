@@ -1,8 +1,12 @@
-import type { AssignmentRecord, SubmissionStatus } from '@/types'
+import type { AssignmentRecord, AssignmentStatus, SubmissionStatus } from '@/types'
 
-export function formatDateTime(value: string | null | undefined) {
-  if (!value) return 'No due date'
+export function formatDateTime(value: string | null | undefined, fallback = 'No due date') {
+  if (!value) return fallback
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+}
+
+export function assignmentStatusLabel(status: AssignmentStatus) {
+  return ({ draft: 'Draft', published: 'Published', closed: 'Closed', archived: 'Archived' } as const)[status]
 }
 
 export function submissionLabel(status: SubmissionStatus | null | undefined) {

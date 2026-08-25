@@ -11,7 +11,7 @@ import { useAuth } from '@/hooks/useAuth'
 const features = [
   { icon: Layers3, label: 'Structured courses' },
   { icon: BookOpenCheck, label: 'Clear next steps' },
-  { icon: CheckCircle2, label: 'Visible progress' },
+  { icon: CheckCircle2, label: 'Clear feedback' },
 ]
 
 export function LoginPage() {
@@ -45,7 +45,7 @@ export function LoginPage() {
           <div className="animate-enter max-w-2xl">
             <p className="mb-5 text-xs font-semibold uppercase tracking-[0.16em] text-primary">Professional learning, organized</p>
             <h1 className="text-4xl font-semibold leading-[1.08] tracking-[-0.05em] sm:text-5xl xl:text-6xl">Your classes. Lessons. Assignments. <span className="text-muted-foreground">All in one place.</span></h1>
-            <p className="mt-6 max-w-lg text-base leading-7 text-muted-foreground">A focused workspace for teachers to guide learning and for students to make steady, visible progress.</p>
+            <p className="mt-6 max-w-lg text-base leading-7 text-muted-foreground">A focused workspace for teachers to organize learning and for students to follow lessons, assignments, and feedback.</p>
             <div className="mt-10 grid max-w-xl gap-4 sm:grid-cols-3">
               {features.map(({ icon: Icon, label }) => <div key={label} className="flex items-center gap-2.5 text-sm font-medium"><span className="flex size-8 items-center justify-center rounded-lg bg-accent text-accent-foreground"><Icon className="size-4" /></span>{label}</div>)}
             </div>

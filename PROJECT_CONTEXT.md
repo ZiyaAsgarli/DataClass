@@ -2,7 +2,7 @@
 
 ## Product purpose
 
-DataClass is a professional digital workspace for an in-person Data Analytics course. Teachers organize class groups, classroom lessons, course resources, assignments, submissions, reviews, and written feedback. Students follow the course structure, submit work, and review progress and feedback.
+DataClass is a professional digital workspace for an in-person Data Analytics course. Teachers organize class groups, classroom lessons, course resources, assignments, submissions, reviews, and written feedback. Students follow the course structure, submit work, and review submission status and feedback.
 
 ## Current stack
 
@@ -36,7 +36,7 @@ Repository-managed SQL migrations live in `database/migrations`. The current dat
 ## Roles
 
 - **Teacher:** may own/lead a class, participate as a class instructor, and teach one or more assigned modules. Teachers later manage authorized course content, assignments, student participation, reviews, and written feedback.
-- **Student:** joins invited classes, follows lessons, completes assignments, submits and resubmits files, and reviews progress and feedback.
+- **Student:** joins invited classes, follows lessons, completes assignments, submits and resubmits files, and reviews submission status and feedback.
 - A user may hold multiple application roles through `public.user_roles`.
 - Teacher-role provisioning remains trusted/admin-controlled. Assigning a profile to `class_teachers` or `module_teachers` must validate that the profile already has the `teacher` application role; assignment never grants that role.
 
@@ -59,6 +59,8 @@ Real Google authentication, secure profile bootstrap, multi-role loading, route 
 - **Completed:** Step 5 — Course Modules + Lessons
 - **Completed at application/storage architecture level:** Step 6 — Lesson Resources + Video
 - **Completed:** Step 7 — Assignments + Student Submissions
+- **Accepted for review:** Step 7B — Core Product QA + UX cleanup
+- **Accepted for review:** Step 7C — Theme polish + guided UX
 - **Migration validation branch retained for review:** `dataclass-step-2`
 - **Production status:** validated 15-table foundation, Neon-authenticated Data API, secure student bootstrap, own-profile/own-role RLS, multi-teacher architecture, class management, module/lesson security, YouTube recording metadata security, private-resource metadata/security, and Step 7 assignment/submission schema/security applied; no application data seeded
 - **Step 3 reference branch:** `dataclass-step-3` retained with development-only dual-role test data
@@ -87,4 +89,8 @@ Real Google authentication, secure profile bootstrap, multi-role loading, route 
 - **Step 7 security boundary:** class owners manage class-level or lesson-linked assignments; assigned module instructors manage only lesson-linked assignments in their modules. Students see published assignments for their active memberships and only their own submission/files/feedback. Current identity and object paths are always derived by authenticated database functions.
 - **Step 7 validation and production promotion:** migration `0008_assignments_submissions.sql` was validated on `dataclass-step-7` through the definitive two-account workflow: draft creation, private task file, publication, student submission, teacher feedback/revision request, version 2 resubmission, preservation/download of both versions, teacher review, and final student `Reviewed` state. The migration was then applied transactionally to production with matching functions, grants, constraints, indexes, policies, and RLS state and with zero application data.
 - **Step 7 storage and review model:** assignment resources and submission files reuse the private B2/Worker signing architecture. One logical submission is retained per assignment/student, immutable file versions preserve revision history, deadlines use database time, and review is text feedback plus `revision_requested`/`reviewed` status only. Numeric grading remains excluded.
+- **Step 7B QA cleanup:** teacher and student dashboards now use only factual class, assignment, enrollment, and submission data with direct next actions. Residual Step 1 mock datasets/components, the fake notification affordance, and non-functional class actions were removed. Navigation entries without real destinations (`Students`, `Reviews`, and `Progress`) are temporarily hidden until their underlying product capabilities exist. Assignment status, timestamp, loading, retry, and safe authorization messages were normalized; dialog and focus semantics were improved; route pages are lazy-loaded to reduce the initial bundle.
+- **Step 7B database boundary:** no schema defect was found, no migration was created, and production remained unchanged. The Cloudflare Worker remains undeployed and its production-origin configuration remains deferred.
+- **Step 7C guided UX:** Light Mode now uses distinct warm page, card, sidebar, and header surfaces with stronger restrained borders/elevation while Dark Mode retains its existing tokens. Teacher setup guidance derives completion from existing classes, enrollments, modules/lessons, published assignments, and reviewed submissions, and disappears once the core sequence is complete. Student guidance prioritizes new assignments and revision feedback. A role-specific, database-free Help panel and concise form/empty-state guidance were added.
+- **Step 7C boundary:** no schema change, onboarding persistence, or feature expansion was introduced. Production and the undeployed Worker remain untouched.
 - **Next feature boundary:** Step 8 has not started. Core student submission and teacher review capabilities were incorporated into Step 7; future expansion remains separately planned.
