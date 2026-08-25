@@ -64,6 +64,7 @@ export interface ClassInstructor {
 }
 
 export type ModuleStatus = 'active' | 'completed' | 'archived'
+export type ModuleLifecycleStatus = 'upcoming' | 'active' | 'completed'
 export type LessonLifecycleStatus = 'draft' | 'published' | 'archived'
 export type ModuleAccess = 'owner' | 'module_instructor' | 'viewer'
 
@@ -75,6 +76,7 @@ export interface CourseModuleRecord {
   description: string | null
   position: number
   status: ModuleStatus
+  lifecycleStatus: ModuleLifecycleStatus
   lessonCount?: number
   publishedLessonCount: number
   instructorNames: string[]

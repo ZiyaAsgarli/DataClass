@@ -1,18 +1,21 @@
 import { useCallback } from 'react'
-import { ArrowLeft, BookOpen, UserRound } from 'lucide-react'
+import { ArrowLeft, BookOpen, Check, Circle, Play, UserRound } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { ErrorState, LoadingState } from '@/components/common/DataState'
+import { ModuleLifecycleBadge } from '@/components/common/ModuleLifecycle'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useAsyncData } from '@/hooks/useAsyncData'
 import { AppShell } from '@/layouts/AppShell'
 import { dataErrorMessage } from '@/lib/dataErrors'
+import { cn } from '@/lib/utils'
 import {
   getMyStudentClassInstructors,
   getMyStudentClassOverview,
 } from '@/services/classService'
 import { listStudentClassModules } from '@/services/moduleService'
+import type { ModuleLifecycleStatus } from '@/types'
 
 export function StudentClassPage() {
   const { classId = '' } = useParams()
@@ -81,45 +84,42 @@ export function StudentClassPage() {
       </Card>
       <section className="animate-enter-delay mt-8">
         <div className="mb-4">
-          <h2 className="text-lg font-semibold">Modules</h2>
+          <h2 className="text-lg font-semibold">Learning path</h2>
           <p className="text-sm text-muted-foreground">
-            Published classroom structure and available lessons.
+            The teaching sequence for this class. Completed modules stay available for review.
           </p>
         </div>
         {data.modules.length ? (
-          <div className="grid gap-4 md:grid-cols-2">
-            {data.modules.map((module) => (
-              <Card
-                key={module.id}
-                className="group p-5 transition-colors hover:border-foreground/20"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <span className="flex size-10 items-center justify-center rounded-lg bg-accent text-primary">
-                    <BookOpen className="size-5" />
-                  </span>
-                  <Badge className="capitalize">{module.status}</Badge>
-                </div>
-                <h3 className="mt-5 text-lg font-semibold">{module.title}</h3>
-                <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-muted-foreground">
-                  {module.description ||
-                    'Course lessons and classroom sessions.'}
-                </p>
-                <div className="mt-5 flex items-center justify-between border-t pt-4">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {module.publishedLessonCount} published{' '}
-                    {module.publishedLessonCount === 1 ? 'lesson' : 'lessons'}
-                  </span>
-                  <Button size="sm" variant="ghost" asChild>
-                    <Link
-                      to={`/student/classes/${classId}/modules/${module.id}`}
-                    >
-                      Open module
-                    </Link>
-                  </Button>
-                </div>
-              </Card>
+          <ol className="space-y-3">
+            {data.modules.map((module, index) => (
+              <li key={module.id}>
+                <Card className={cn('group p-4 transition-colors hover:border-foreground/20 sm:p-5', module.lifecycleStatus === 'active' && 'border-primary/45 bg-accent/25 shadow-sm')}>
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-start gap-4">
+                      <ModulePathIcon status={module.lifecycleStatus} position={index + 1} />
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-semibold">{module.title}</h3>
+                          <ModuleLifecycleBadge status={module.lifecycleStatus} currentLabel />
+                        </div>
+                        <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">{module.description || 'Course lessons and classroom sessions.'}</p>
+                        <p className="mt-2 text-xs font-medium text-muted-foreground">
+                          {module.publishedLessonCount > 0
+                            ? `${module.publishedLessonCount} published ${module.publishedLessonCount === 1 ? 'lesson' : 'lessons'}`
+                            : module.lifecycleStatus === 'upcoming'
+                              ? 'Lessons will appear when this module begins.'
+                              : 'No lessons have been published yet.'}
+                        </p>
+                      </div>
+                    </div>
+                    <Button size="sm" variant={module.lifecycleStatus === 'active' ? 'default' : 'outline'} asChild className="w-full sm:w-auto">
+                      <Link to={`/student/classes/${classId}/modules/${module.id}`}>Open module</Link>
+                    </Button>
+                  </div>
+                </Card>
+              </li>
             ))}
-          </div>
+          </ol>
         ) : (
           <Card className="flex min-h-40 flex-col items-center justify-center p-6 text-center sm:p-8">
             <span className="flex size-12 items-center justify-center rounded-xl bg-accent text-primary">
@@ -133,5 +133,14 @@ export function StudentClassPage() {
         )}
       </section>
     </AppShell>
+  )
+}
+
+function ModulePathIcon({ status, position }: { status: ModuleLifecycleStatus; position: number }) {
+  const Icon = status === 'completed' ? Check : status === 'active' ? Play : Circle
+  return (
+    <span className={cn('flex size-10 shrink-0 items-center justify-center rounded-full border text-xs font-semibold', status === 'active' ? 'border-primary bg-primary text-primary-foreground' : status === 'completed' ? 'border-primary/25 bg-primary/10 text-primary' : 'bg-muted text-muted-foreground')} aria-label={`Module ${position}: ${status}`}>
+      <Icon className="size-4" aria-hidden="true" />
+    </span>
   )
 }

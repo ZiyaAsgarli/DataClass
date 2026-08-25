@@ -42,8 +42,10 @@ export function ModuleFormDialog({ initial, allowStatus = false, onClose, onSave
     setError('')
     try {
       await onSave(title, description, status)
-    } catch {
-      setError('The module could not be saved. Please try again.')
+    } catch (error) {
+      setError(error instanceof Error && error.message.includes('Change the module teaching status before archiving')
+        ? 'Change the module teaching status before archiving it.'
+        : 'The module could not be saved. Please try again.')
     } finally {
       setBusy(false)
     }
@@ -61,12 +63,13 @@ export function ModuleFormDialog({ initial, allowStatus = false, onClose, onSave
         </label>
         {allowStatus && (
           <label className="block text-sm font-medium">
-            Status
+            Module availability
             <select value={status} onChange={(event) => setStatus(event.target.value as ModuleStatus)} className="mt-2 h-10 w-full rounded-md border bg-background px-3">
               <option value="active">Active</option>
               <option value="completed">Completed</option>
               <option value="archived">Archived</option>
             </select>
+            <span className="mt-1.5 block text-xs font-normal text-muted-foreground">Archived modules are hidden from students. Teaching status is managed separately.</span>
           </label>
         )}
         {error && (

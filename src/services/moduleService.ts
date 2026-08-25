@@ -5,6 +5,7 @@ import type {
   LessonLifecycleStatus,
   LessonVideoRecord,
   ModuleInstructorOption,
+  ModuleLifecycleStatus,
   ModuleStatus,
 } from '@/types'
 
@@ -25,7 +26,8 @@ function mapModule(row: RpcRow): CourseModuleRecord {
   return {
     id: text(row.id), classId: text(row.class_id), className: nullableText(row.class_name) ?? undefined,
     title: text(row.title), description: nullableText(row.description), position: count(row.module_position),
-    status: text(row.status) as ModuleStatus, lessonCount: row.lesson_count == null ? undefined : count(row.lesson_count),
+    status: text(row.status) as ModuleStatus, lifecycleStatus: text(row.lifecycle_status) as ModuleLifecycleStatus,
+    lessonCount: row.lesson_count == null ? undefined : count(row.lesson_count),
     publishedLessonCount: count(row.published_lesson_count), instructorNames: textArray(row.instructor_names),
     canManage: typeof row.can_manage === 'boolean' ? row.can_manage : undefined,
     currentAccess: row.current_access as CourseModuleRecord['currentAccess'],
@@ -76,6 +78,13 @@ export async function updateModule(moduleId: string, title: string, description:
   await rpc('update_module', {
     target_module_id: moduleId, module_title: title,
     module_description: description || null, module_status: status,
+  })
+}
+
+export async function setModuleLifecycle(moduleId: string, status: ModuleLifecycleStatus) {
+  await rpc('set_module_lifecycle', {
+    target_module_id: moduleId,
+    requested_lifecycle_status: status,
   })
 }
 

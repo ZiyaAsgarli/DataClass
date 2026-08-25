@@ -3,14 +3,17 @@ import { Archive, ArrowDown, ArrowLeft, ArrowUp, BookOpen, MailPlus, Plus, Save,
 import { Link, useParams } from 'react-router-dom'
 import { ModuleFormDialog } from '@/components/common/CourseForms'
 import { ErrorState, LoadingState } from '@/components/common/DataState'
+import { ModuleLifecycleBadge, ModuleLifecycleControl } from '@/components/common/ModuleLifecycle'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useAsyncData } from '@/hooks/useAsyncData'
 import { AppShell } from '@/layouts/AppShell'
 import { dataErrorMessage } from '@/lib/dataErrors'
+import { cn } from '@/lib/utils'
 import { addInstructor, getClassInstructors, getClassInvitations, getClassOverview, getClassStudents, inviteStudents, removeInstructor, revokeInvitation, updateClass } from '@/services/classService'
-import { createModule, listTeacherClassModules, reorderModule } from '@/services/moduleService'
+import { createModule, listTeacherClassModules, reorderModule, setModuleLifecycle } from '@/services/moduleService'
+import type { ModuleLifecycleStatus } from '@/types'
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const formatDate = (value: string) =>
@@ -32,6 +35,7 @@ export function TeacherClassDetailPage() {
   const [instructorOpen, setInstructorOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [creatingModule, setCreatingModule] = useState(false)
+  const [lifecycleBusy, setLifecycleBusy] = useState<string | null>(null)
   const [message, setMessage] = useState('')
 
   if (loading)
@@ -57,6 +61,22 @@ export function TeacherClassDetailPage() {
       await reload()
     } catch {
       setMessage('The class could not be archived.')
+    }
+  }
+
+  const changeModuleLifecycle = async (moduleId: string, status: ModuleLifecycleStatus) => {
+    setLifecycleBusy(moduleId)
+    setMessage('')
+    try {
+      await setModuleLifecycle(moduleId, status)
+      setMessage(`Module marked ${status}.`)
+      await reload()
+    } catch (error) {
+      setMessage(error instanceof Error && error.message.includes('Another module is already active')
+        ? 'Another module is already active for this class.'
+        : 'The module lifecycle could not be changed.')
+    } finally {
+      setLifecycleBusy(null)
     }
   }
 
@@ -123,13 +143,14 @@ export function TeacherClassDetailPage() {
         {modules.length ? (
           <div className="grid gap-4 md:grid-cols-2">
             {modules.map((module, index) => (
-              <Card key={module.id} className="p-5">
+              <Card key={module.id} className={cn('p-5 transition-colors', module.lifecycleStatus === 'active' && 'border-primary/45 bg-accent/25 shadow-sm')}>
                 <div className="flex items-start justify-between gap-4">
                   <span className="flex size-10 items-center justify-center rounded-lg bg-accent text-primary">
                     <BookOpen className="size-5" />
                   </span>
                   <div className="flex items-center gap-1">
-                    <Badge className="capitalize">{module.status}</Badge>
+                    <ModuleLifecycleBadge status={module.lifecycleStatus} currentLabel />
+                    {module.status === 'archived' && <Badge variant="outline">Archived availability</Badge>}
                     {owner && (
                       <>
                         <Button
@@ -168,6 +189,12 @@ export function TeacherClassDetailPage() {
                     {module.lessonCount} {module.lessonCount === 1 ? 'lesson' : 'lessons'} · {module.publishedLessonCount} published
                   </p>
                 </div>
+                {owner && (
+                  <div className="mt-4 flex items-center justify-between gap-3 border-t pt-4">
+                    <span className="text-xs text-muted-foreground">Teaching status</span>
+                    <ModuleLifecycleControl status={module.lifecycleStatus} canActivate={module.status === 'active' || module.status === 'completed'} disabled={lifecycleBusy === module.id} onChange={(status) => void changeModuleLifecycle(module.id, status)} />
+                  </div>
+                )}
                 <Button className="mt-5 w-full" variant="outline" asChild>
                   <Link to={`/teacher/classes/${classId}/modules/${module.id}`}>Manage module</Link>
                 </Button>

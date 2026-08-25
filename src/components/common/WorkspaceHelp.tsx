@@ -5,13 +5,13 @@ import type { UserRole } from '@/types'
 const teacherItems = [
   { icon: BookOpen, title: 'Create a class', detail: 'Set up the learning space for a cohort.' },
   { icon: Users, title: 'Invite students', detail: 'Add their email addresses from the class page.' },
-  { icon: BookOpen, title: 'Add lessons', detail: 'Organize lessons inside ordered course modules.' },
+  { icon: BookOpen, title: 'Add lessons', detail: 'Set teaching status to Active when a module begins and Completed when it finishes.' },
   { icon: ClipboardList, title: 'Publish an assignment', detail: 'Add task files, then make the assignment available.' },
   { icon: CheckCircle2, title: 'Review submissions', detail: 'Give feedback, request revisions, or mark work reviewed.' },
 ]
 
 const studentItems = [
-  { icon: BookOpen, title: 'Open your classes', detail: 'Browse published modules and classroom lessons.' },
+  { icon: BookOpen, title: 'Open your classes', detail: 'Follow the learning path; completed modules remain available for review.' },
   { icon: BookOpen, title: 'Access lesson resources', detail: 'Watch recordings and download shared course files.' },
   { icon: ClipboardList, title: 'Download task files', detail: 'Open an assignment to get its instructions and files.' },
   { icon: CheckCircle2, title: 'Submit your work', detail: 'Upload one or more solution files, then submit.' },

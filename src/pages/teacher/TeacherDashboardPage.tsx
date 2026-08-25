@@ -58,6 +58,7 @@ function DashboardContent({ data }: { data: TeacherDashboardData }) {
   const enrollments = active.reduce((total, course) => total + course.studentCount, 0)
   const publishedAssignments = data.assignments.filter((assignment) => assignment.status === 'published')
   const pendingReviews = data.reviewItems.reduce((total, item) => total + item.count, 0)
+  const activeModules = data.modules.filter((module) => module.lifecycleStatus === 'active' && (module.status === 'active' || module.status === 'completed'))
   const setupSteps = [
     { label: 'Create a class', complete: data.classes.length > 0, href: '/teacher/classes' },
     { label: 'Invite students', complete: enrollments > 0, href: data.classes[0] ? `/teacher/classes/${data.classes[0].id}` : '/teacher/classes' },
@@ -75,6 +76,17 @@ function DashboardContent({ data }: { data: TeacherDashboardData }) {
         <Metric icon={ClipboardList} label="Published assignments" value={publishedAssignments.length} />
         <Metric icon={ClipboardCheck} label="Needs review" value={pendingReviews} />
       </div>
+      <Card className="mt-6 p-5 sm:p-6">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Current teaching module</p>
+        {activeModules.length ? (
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div><p className="font-semibold">{activeModules.map((module) => module.title).join(', ')}</p><p className="mt-1 text-sm text-muted-foreground">Active across your current classes</p></div>
+            <Button size="sm" variant="outline" asChild><Link to={`/teacher/classes/${activeModules[0].classId}/modules/${activeModules[0].id}`}>Open module</Link></Button>
+          </div>
+        ) : (
+          <div className="mt-3"><p className="font-semibold">Next module has not been activated yet</p><p className="mt-1 text-sm text-muted-foreground">Set a module to Active from its class page when teaching begins.</p></div>
+        )}
+      </Card>
       {nextStep && (
         <Card className="mt-6 border-primary/20 bg-accent/35 p-5 sm:p-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">

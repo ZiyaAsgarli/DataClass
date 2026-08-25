@@ -12,11 +12,13 @@ import { AppShell } from '@/layouts/AppShell'
 import { formatDateTime, studentAssignmentLabel } from '@/lib/assignments'
 import { listStudentAssignments } from '@/services/assignmentService'
 import { listStudentClasses } from '@/services/classService'
-import type { AssignmentRecord, ManagedClass } from '@/types'
+import { listStudentClassModules } from '@/services/moduleService'
+import type { AssignmentRecord, CourseModuleRecord, ManagedClass } from '@/types'
 
 interface StudentDashboardData {
   classes: ManagedClass[]
   assignments: AssignmentRecord[]
+  modules: CourseModuleRecord[]
 }
 
 export function StudentDashboardPage() {
@@ -24,7 +26,8 @@ export function StudentDashboardPage() {
   const firstName = profile?.fullName.split(/\s+/)[0] || 'Student'
   const loader = useCallback(async (): Promise<StudentDashboardData> => {
     const [classes, assignments] = await Promise.all([listStudentClasses(), listStudentAssignments()])
-    return { classes, assignments }
+    const modules = (await Promise.all(classes.filter((course) => course.status === 'active').map((course) => listStudentClassModules(course.id)))).flat()
+    return { classes, assignments, modules }
   }, [])
   const { data, loading, error, reload } = useAsyncData(loader)
 
@@ -44,6 +47,7 @@ function DashboardContent({ data }: { data: StudentDashboardData }) {
   const activeClasses = data.classes.filter((course) => course.status === 'active')
   const revisionCount = data.assignments.filter((assignment) => assignment.submissionStatus === 'revision_requested').length
   const attention = data.assignments.filter((assignment) => !assignment.submissionStatus || assignment.submissionStatus === 'draft' || assignment.submissionStatus === 'revision_requested')
+  const activeModule = data.modules.find((module) => module.lifecycleStatus === 'active')
 
   return (
     <>
@@ -53,6 +57,17 @@ function DashboardContent({ data }: { data: StudentDashboardData }) {
         <Metric icon={AlertTriangle} label="Needs action" value={attention.length} />
         <Metric icon={RotateCcw} label="Revision requested" value={revisionCount} />
       </div>
+      <Card className="mt-6 border-primary/15 bg-accent/20 p-5 sm:p-6">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Current module</p>
+        {activeModule ? (
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div><p className="font-semibold">{activeModule.title}</p><p className="mt-1 text-sm text-muted-foreground">This is the module your class is currently studying.</p></div>
+            <Button size="sm" variant="outline" asChild><Link to={`/student/classes/${activeModule.classId}/modules/${activeModule.id}`}>Open module</Link></Button>
+          </div>
+        ) : (
+          <div className="mt-3"><p className="font-semibold">Next module has not been activated yet</p><p className="mt-1 text-sm text-muted-foreground">Completed modules remain available from My Classes.</p></div>
+        )}
+      </Card>
       <section className="mt-8">
         <SectionHeader
           title="What should I do now?"
