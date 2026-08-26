@@ -3,7 +3,7 @@ import { ArrowLeft, CalendarDays, CheckCircle2, Clock3, RotateCcw } from 'lucide
 import { Link, useParams } from 'react-router-dom'
 import { StudentAssignmentResources, StudentSubmissionUpload, SubmissionFileList } from '@/components/common/AssignmentFiles'
 import { ErrorState, LoadingState } from '@/components/common/DataState'
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useAsyncData } from '@/hooks/useAsyncData'
@@ -44,8 +44,8 @@ export function StudentAssignmentDetailPage() {
         </Link>
       </Button>
       <Card className="p-5 sm:p-7">
-        <Badge>{submissionLabel(status)}</Badge>
-        <h1 className="mt-4 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">{assignment.title}</h1>
+        <StatusBadge status={status ?? 'draft'} label={submissionLabel(status)} />
+        <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">{assignment.title}</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           {assignment.className}
           {assignment.lessonTitle ? ` · ${assignment.lessonTitle}` : ''}

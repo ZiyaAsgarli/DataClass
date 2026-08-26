@@ -5,6 +5,7 @@ import { TeacherAssignmentResources } from '@/components/common/AssignmentFiles'
 import { AssignmentFormDialog } from '@/components/common/AssignmentForms'
 import { ErrorState, LoadingState } from '@/components/common/DataState'
 import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useAsyncData } from '@/hooks/useAsyncData'
@@ -57,7 +58,7 @@ export function TeacherAssignmentDetailPage() {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="flex flex-wrap gap-2">
-              <Badge>{assignmentStatusLabel(assignment.status)}</Badge>
+              <StatusBadge status={assignment.status} label={assignmentStatusLabel(assignment.status)} />
               {assignment.lessonTitle && <Badge variant="outline">{assignment.lessonTitle}</Badge>}
             </div>
             <h1 className="mt-4 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">{assignment.title}</h1>
@@ -123,7 +124,7 @@ export function TeacherAssignmentDetailPage() {
                     <p className="truncate text-xs text-muted-foreground">{student.email}</p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <Badge variant={student.status === 'revision_requested' ? 'outline' : 'default'}>{submissionLabel(student.status)}</Badge>
+                    <StatusBadge status={student.status ?? 'draft'} label={submissionLabel(student.status)} />
                     {student.submissionId && (
                       <Button size="sm" variant="outline" asChild>
                         <Link to={`/teacher/assignments/${assignment.id}/submissions/${student.submissionId}`}>Review</Link>

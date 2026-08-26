@@ -3,7 +3,7 @@ import { ArrowLeft, BookOpen, Check, Circle, Play, UserRound } from 'lucide-reac
 import { Link, useParams } from 'react-router-dom'
 import { ErrorState, LoadingState } from '@/components/common/DataState'
 import { ModuleLifecycleBadge } from '@/components/common/ModuleLifecycle'
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useAsyncData } from '@/hooks/useAsyncData'
@@ -55,9 +55,9 @@ export function StudentClassPage() {
           Back to classes
         </Link>
       </Button>
-      <Card className="animate-enter p-5 sm:p-7">
-        <Badge className="capitalize">{data.overview.status}</Badge>
-        <h1 className="mt-4 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">
+      <Card className="animate-enter overflow-hidden border-[var(--strong-border)] p-5 sm:p-7">
+        <StatusBadge status={data.overview.status} label={data.overview.status[0].toUpperCase() + data.overview.status.slice(1)} />
+        <h1 className="mt-4 font-['Hanken_Grotesk'] text-3xl font-bold tracking-[-0.04em] sm:text-4xl">
           {data.overview.name}
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
@@ -90,10 +90,10 @@ export function StudentClassPage() {
           </p>
         </div>
         {data.modules.length ? (
-          <ol className="space-y-3">
+          <ol className="relative space-y-4 before:absolute before:bottom-7 before:left-5 before:top-7 before:w-px before:bg-border sm:before:left-6">
             {data.modules.map((module, index) => (
               <li key={module.id}>
-                <Card className={cn('group p-4 transition-colors hover:border-foreground/20 sm:p-5', module.lifecycleStatus === 'active' && 'border-primary/45 bg-accent/25 shadow-sm')}>
+                <Card className={cn('group relative p-4 transition-all hover:-translate-y-0.5 hover:border-primary/25 sm:p-5', module.lifecycleStatus === 'active' && 'border-primary/45 bg-accent/35 shadow-[0_12px_28px_rgba(47,104,70,0.1)]')}>
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex min-w-0 items-start gap-4">
                       <ModulePathIcon status={module.lifecycleStatus} position={index + 1} />
@@ -139,7 +139,7 @@ export function StudentClassPage() {
 function ModulePathIcon({ status, position }: { status: ModuleLifecycleStatus; position: number }) {
   const Icon = status === 'completed' ? Check : status === 'active' ? Play : Circle
   return (
-    <span className={cn('flex size-10 shrink-0 items-center justify-center rounded-full border text-xs font-semibold', status === 'active' ? 'border-primary bg-primary text-primary-foreground' : status === 'completed' ? 'border-primary/25 bg-primary/10 text-primary' : 'bg-muted text-muted-foreground')} aria-label={`Module ${position}: ${status}`}>
+    <span className={cn('relative z-10 flex size-10 shrink-0 items-center justify-center rounded-full border-2 text-xs font-semibold shadow-[0_0_0_5px_var(--card)] sm:size-12', status === 'active' ? 'border-primary bg-primary text-primary-foreground' : status === 'completed' ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'border-[var(--strong-border)] bg-muted text-muted-foreground')} aria-label={`Module ${position}: ${status}`}>
       <Icon className="size-4" aria-hidden="true" />
     </span>
   )

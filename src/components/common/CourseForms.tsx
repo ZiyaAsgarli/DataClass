@@ -4,15 +4,15 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import type { LessonLifecycleStatus, ModuleStatus } from '@/types'
 
-export function DialogFrame({ title, description, onClose, children }: { title: string; description: string; onClose: () => void; children: ReactNode }) {
+export function DialogFrame({ title, description, onClose, children, className }: { title: string; description: string; onClose: () => void; children: ReactNode; className?: string }) {
   const titleId = useId()
   const descriptionId = useId()
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={descriptionId}>
-      <Card className="max-h-[92vh] w-full max-w-lg overflow-y-auto p-6 shadow-xl">
+      <Card className={`max-h-[92vh] w-full max-w-lg overflow-y-auto border-[var(--strong-border)] p-6 shadow-[var(--shadow-2)] sm:p-7 ${className ?? ''}`}>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 id={titleId} className="text-xl font-semibold">
+            <h2 id={titleId} className="text-2xl font-semibold tracking-[-0.025em]">
               {title}
             </h2>
             <p id={descriptionId} className="mt-1 text-sm text-muted-foreground">

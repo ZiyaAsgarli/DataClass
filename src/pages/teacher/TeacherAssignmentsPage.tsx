@@ -3,7 +3,7 @@ import { CalendarDays, ClipboardList, Plus, Users } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AssignmentFormDialog } from '@/components/common/AssignmentForms'
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/DataState'
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useAsyncData } from '@/hooks/useAsyncData'
@@ -27,9 +27,9 @@ export function TeacherAssignmentsPage() {
     <AppShell role="teacher" title="Assignments">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-medium text-primary">Coursework</p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">Assignments</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Create coursework, share task files, and review student submissions.</p>
+          <p className="page-kicker">Coursework</p>
+          <h1 className="page-title">Assignments</h1>
+          <p className="page-description">Create coursework, share task files, and review student submissions.</p>
         </div>
         <Button disabled={!data?.classes.length} onClick={() => setCreating(true)}>
           <Plus />
@@ -53,39 +53,23 @@ export function TeacherAssignmentsPage() {
             }
           />
         ) : (
-          <div className="grid gap-4 xl:grid-cols-2">
-            {data.assignments.map((assignment) => (
-              <Card key={assignment.id} className="p-5 transition-colors hover:border-primary/30">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap gap-2">
-                      <Badge>{assignmentStatusLabel(assignment.status)}</Badge>
-                      {assignment.lessonTitle && <Badge variant="outline">{assignment.lessonTitle}</Badge>}
-                    </div>
-                    <h2 className="mt-3 truncate text-lg font-semibold">{assignment.title}</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">{assignment.className}</p>
-                  </div>
-                  <ClipboardList className="size-5 shrink-0 text-muted-foreground" />
+          <Card className="overflow-hidden border-[var(--strong-border)]">
+            <div className="hidden grid-cols-12 gap-4 border-b bg-muted/55 px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground lg:grid">
+              <div className="col-span-4">Assignment</div><div className="col-span-2">Class</div><div className="col-span-2">Due date</div><div className="col-span-2">Submissions</div><div className="col-span-1">Status</div><div className="col-span-1 text-right">Action</div>
+            </div>
+            <div className="divide-y">
+              {data.assignments.map((assignment) => (
+                <div key={assignment.id} className="grid gap-4 p-5 transition-colors hover:bg-muted/35 lg:grid-cols-12 lg:items-center">
+                  <div className="min-w-0 lg:col-span-4"><div className="flex items-start gap-3"><span className="icon-tile size-9 shrink-0 rounded-xl"><ClipboardList className="size-4" /></span><div className="min-w-0"><h2 className="truncate font-semibold">{assignment.title}</h2>{assignment.lessonTitle && <p className="mt-1 truncate text-xs text-muted-foreground">Lesson: {assignment.lessonTitle}</p>}</div></div></div>
+                  <p className="text-sm lg:col-span-2"><span className="mr-1 text-xs text-muted-foreground lg:hidden">Class:</span>{assignment.className}</p>
+                  <p className="flex items-center gap-2 text-sm text-muted-foreground lg:col-span-2"><CalendarDays className="size-4 lg:hidden" />{formatDateTime(assignment.dueAt)}</p>
+                  <div className="text-sm lg:col-span-2"><p className="flex items-center gap-2"><Users className="size-4 text-muted-foreground" />{assignment.submittedCount ?? 0}/{assignment.totalStudents ?? 0} submitted</p><p className="mt-1 text-xs text-muted-foreground">{assignment.reviewedCount ?? 0} reviewed</p></div>
+                  <div className="lg:col-span-1"><StatusBadge status={assignment.status} label={assignmentStatusLabel(assignment.status)} /></div>
+                  <div className="lg:col-span-1 lg:text-right"><Button size="sm" variant="outline" asChild><Link to={`/teacher/assignments/${assignment.id}`}>Open</Link></Button></div>
                 </div>
-                <div className="mt-5 flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-                  <p className="flex items-center gap-2 text-muted-foreground">
-                    <CalendarDays className="size-4" />
-                    {formatDateTime(assignment.dueAt)}
-                  </p>
-                  <p className="flex items-center gap-2 text-muted-foreground">
-                    <Users className="size-4" />
-                    {assignment.submittedCount ?? 0}/{assignment.totalStudents ?? 0} submitted
-                  </p>
-                </div>
-                <div className="mt-5 flex items-center justify-between border-t pt-4">
-                  <p className="text-xs text-muted-foreground">{assignment.reviewedCount ?? 0} reviewed</p>
-                  <Button size="sm" variant="outline" asChild>
-                    <Link to={`/teacher/assignments/${assignment.id}`}>Open</Link>
-                  </Button>
-                </div>
-              </Card>
-            ))}
-          </div>
+              ))}
+            </div>
+          </Card>
         )}
       </div>
       {creating && data && (

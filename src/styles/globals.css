@@ -5,33 +5,40 @@
 
 :root {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #18181b;
-  background: #f5f6f2;
+  color: #17211c;
+  background: #f6f6f1;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --background: #f5f6f2;
-  --foreground: #18181b;
-  --card: #ffffff;
-  --card-foreground: #18181b;
+  --background: #f6f6f1;
+  --foreground: #17211c;
+  --card: #fffefa;
+  --card-foreground: #17211c;
   --popover: #ffffff;
-  --popover-foreground: #18181b;
-  --primary: #315c4d;
+  --popover-foreground: #17211c;
+  --primary: #2f6846;
   --primary-foreground: #ffffff;
-  --secondary: #eef1ed;
-  --secondary-foreground: #27272a;
-  --muted: #f0f2ef;
-  --muted-foreground: #686f6b;
-  --accent: #e5f0eb;
-  --accent-foreground: #24463a;
-  --destructive: #dc2626;
-  --border: #dce2dd;
-  --input: #d7ded8;
-  --ring: #537d6e;
-  --sidebar: #fafbf8;
-  --header: rgba(250, 251, 248, 0.94);
-  --card-shadow: 0 1px 2px rgba(24, 40, 33, 0.05), 0 8px 24px rgba(24, 40, 33, 0.035);
-  --radius: 0.75rem;
+  --primary-hover: #285a3c;
+  --secondary: #edf1eb;
+  --secondary-foreground: #26312b;
+  --muted: #f0f2ed;
+  --muted-foreground: #68716b;
+  --accent: #e4f0e7;
+  --accent-foreground: #245138;
+  --destructive: #b53b35;
+  --warning: #9a6512;
+  --success: #2f6846;
+  --border: #d9dfd8;
+  --strong-border: #c7d0c8;
+  --input: #d1d8d1;
+  --ring: #3e7454;
+  --sidebar: #eef2eb;
+  --header: rgba(255, 254, 250, 0.92);
+  --elevated: #ffffff;
+  --shadow-1: 0 1px 2px rgba(27, 54, 39, 0.04), 0 8px 24px rgba(37, 75, 52, 0.055);
+  --shadow-2: 0 16px 40px rgba(24, 43, 32, 0.14);
+  --card-shadow: var(--shadow-1);
+  --radius: 1rem;
 }
 
 .dark {
@@ -45,6 +52,7 @@
   --popover-foreground: #f4f4f5;
   --primary: #8bb8a8;
   --primary-foreground: #102019;
+  --primary-hover: #9dc8b8;
   --secondary: #242927;
   --secondary-foreground: #f4f4f5;
   --muted: #222725;
@@ -52,11 +60,17 @@
   --accent: #25342e;
   --accent-foreground: #d6e9e2;
   --border: #303633;
+  --strong-border: #414844;
   --input: #303633;
   --ring: #8bb8a8;
   --sidebar: #171b19;
   --header: rgba(17, 21, 19, 0.9);
-  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  --elevated: #1c211f;
+  --warning: #e5b96c;
+  --success: #8bb8a8;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.08), 0 10px 28px rgba(0, 0, 0, 0.12);
+  --shadow-2: 0 18px 46px rgba(0, 0, 0, 0.32);
+  --card-shadow: var(--shadow-1);
 }
 
 @theme inline {
@@ -75,6 +89,8 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -87,8 +103,17 @@
 * { border-color: var(--border); }
 html { min-width: 320px; background: var(--background); }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--background); color: var(--foreground); }
+h1, h2, h3, h4, h5, h6 { font-family: "Hanken Grotesk", Inter, ui-sans-serif, system-ui, sans-serif; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+input:not([type="checkbox"]):not([type="radio"]), select, textarea { border-color: var(--input); background: var(--elevated); transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease; }
+input:not([type="checkbox"]):not([type="radio"]):focus, select:focus, textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 16%, transparent); }
+
+.page-kicker { color: var(--primary); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.page-title { margin-top: 0.5rem; font-family: "Hanken Grotesk", sans-serif; font-size: clamp(1.75rem, 3vw, 2.25rem); font-weight: 700; letter-spacing: -0.035em; line-height: 1.15; }
+.page-description { margin-top: 0.625rem; max-width: 44rem; color: var(--muted-foreground); font-size: 0.9375rem; line-height: 1.6; }
+.surface-panel { border: 1px solid var(--border); border-radius: 1rem; background: var(--card); box-shadow: var(--shadow-1); }
+.icon-tile { display: inline-flex; width: 2.75rem; height: 2.75rem; align-items: center; justify-content: center; border-radius: 0.875rem; background: var(--accent); color: var(--primary); }
 
 @keyframes enter-up {
   from { opacity: 0; transform: translateY(6px); }

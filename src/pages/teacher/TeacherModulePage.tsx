@@ -4,7 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 import { LessonFormDialog, ModuleFormDialog } from '@/components/common/CourseForms'
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/DataState'
 import { ModuleLifecycleBadge, ModuleLifecycleControl } from '@/components/common/ModuleLifecycle'
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useAsyncData } from '@/hooks/useAsyncData'
@@ -90,9 +90,7 @@ export function TeacherModulePage() {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <ModuleLifecycleBadge status={module.lifecycleStatus} currentLabel />
-              <Badge variant="outline" className="capitalize">
-                {module.status} availability
-              </Badge>
+              <StatusBadge status={module.status} label={`${module.status[0].toUpperCase() + module.status.slice(1)} availability`} />
               <span className="text-xs font-medium text-muted-foreground">{module.currentAccess === 'module_instructor' ? 'Module instructor' : module.currentAccess}</span>
             </div>
             <h1 className="mt-4 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">{module.title}</h1>
@@ -191,7 +189,7 @@ export function TeacherModulePage() {
                         <Link className="font-medium hover:text-primary" to={`/teacher/classes/${classId}/modules/${moduleId}/lessons/${lesson.id}`}>
                           {lesson.title}
                         </Link>
-                        <Badge className="capitalize">{lesson.status}</Badge>
+                        <StatusBadge status={lesson.status} label={lesson.status[0].toUpperCase() + lesson.status.slice(1)} />
                       </div>
                       <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                         <CalendarDays className="size-3.5" />

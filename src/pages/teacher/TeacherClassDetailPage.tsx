@@ -5,6 +5,7 @@ import { ModuleFormDialog } from '@/components/common/CourseForms'
 import { ErrorState, LoadingState } from '@/components/common/DataState'
 import { ModuleLifecycleBadge, ModuleLifecycleControl } from '@/components/common/ModuleLifecycle'
 import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useAsyncData } from '@/hooks/useAsyncData'
@@ -93,7 +94,7 @@ export function TeacherClassDetailPage() {
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge className="capitalize">{overview.status}</Badge>
+                <StatusBadge status={overview.status} label={overview.status[0].toUpperCase() + overview.status.slice(1)} />
                 <span className="text-xs font-medium capitalize text-muted-foreground">{overview.currentAccess} access</span>
               </div>
               <h1 className="mt-4 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">{overview.name}</h1>
@@ -150,7 +151,7 @@ export function TeacherClassDetailPage() {
                   </span>
                   <div className="flex items-center gap-1">
                     <ModuleLifecycleBadge status={module.lifecycleStatus} currentLabel />
-                    {module.status === 'archived' && <Badge variant="outline">Archived availability</Badge>}
+                    {module.status === 'archived' && <StatusBadge status="archived" label="Archived availability" />}
                     {owner && (
                       <>
                         <Button

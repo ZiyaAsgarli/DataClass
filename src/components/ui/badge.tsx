@@ -6,5 +6,5 @@ type BadgeProps = HTMLAttributes<HTMLSpanElement> & {
 }
 
 export function Badge({ className, variant = 'default', ...props }: BadgeProps) {
-  return <span className={cn('inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium', variant === 'default' ? 'border-transparent bg-secondary text-secondary-foreground' : 'text-muted-foreground', className)} {...props} />
+  return <span className={cn('inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold leading-none', variant === 'default' ? 'border-primary/15 bg-accent/70 text-accent-foreground' : 'border-[var(--strong-border)] bg-card text-muted-foreground', className)} {...props} />
 }

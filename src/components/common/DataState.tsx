@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card'
 
 export function LoadingState({ label = 'Loading…' }: { label?: string }) {
   return (
-    <Card className="flex min-h-48 items-center justify-center gap-3 p-8 text-sm text-muted-foreground" role="status" aria-live="polite">
+    <Card className="flex min-h-44 items-center justify-center gap-3 p-8 text-sm text-muted-foreground" role="status" aria-live="polite">
       <LoaderCircle className="size-4 animate-spin" />
       {label}
     </Card>
@@ -14,7 +14,7 @@ export function LoadingState({ label = 'Loading…' }: { label?: string }) {
 
 export function ErrorState({ retry, message = 'We could not load this information.' }: { retry: () => void; message?: string }) {
   return (
-    <Card className="flex min-h-48 flex-col items-center justify-center p-8 text-center" role="alert">
+    <Card className="flex min-h-44 flex-col items-center justify-center p-8 text-center" role="alert">
       <AlertCircle className="size-6 text-destructive" />
       <p className="mt-3 text-sm font-medium">{message}</p>
       <Button className="mt-4" variant="outline" size="sm" onClick={retry}>
@@ -26,8 +26,8 @@ export function ErrorState({ retry, message = 'We could not load this informatio
 
 export function EmptyState({ title, description, action }: { title: string; description: string; action?: ReactNode }) {
   return (
-    <Card className="flex min-h-40 flex-col items-center justify-center p-6 text-center sm:p-8">
-      <span className="flex size-11 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+    <Card className="flex min-h-36 flex-col items-center justify-center border-dashed p-6 text-center sm:p-8">
+      <span className="icon-tile">
         <Inbox className="size-5" />
       </span>
       <h2 className="mt-4 font-semibold">{title}</h2>

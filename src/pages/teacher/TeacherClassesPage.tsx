@@ -12,6 +12,7 @@ import { Card } from '@/components/ui/card'
 import { useAsyncData } from '@/hooks/useAsyncData'
 import { AppShell } from '@/layouts/AppShell'
 import { createClass, listTeacherClasses } from '@/services/classService'
+import { listTeacherClassModules } from '@/services/moduleService'
 
 function CreateClassDialog({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate()
@@ -43,14 +44,15 @@ function CreateClassDialog({ onClose }: { onClose: () => void }) {
       role="dialog"
       aria-modal="true"
       aria-labelledby="create-class-title"
+      aria-describedby="create-class-description"
     >
-      <Card className="w-full max-w-lg p-6 shadow-xl">
+      <Card className="w-full max-w-lg border-[var(--strong-border)] p-6 shadow-[var(--shadow-2)] sm:p-7">
         <div className="flex items-start justify-between">
           <div>
-            <h2 id="create-class-title" className="text-xl font-semibold">
+            <h2 id="create-class-title" className="text-2xl font-semibold tracking-[-0.025em]">
               Create a class
             </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p id="create-class-description" className="mt-1 text-sm text-muted-foreground">
               Start a new learning space for your cohort.
             </p>
           </div>
@@ -113,17 +115,21 @@ function CreateClassDialog({ onClose }: { onClose: () => void }) {
 
 export function TeacherClassesPage() {
   const [creating, setCreating] = useState(false)
-  const loader = useCallback(() => listTeacherClasses(), [])
+  const loader = useCallback(async () => {
+    const classes = await listTeacherClasses()
+    const modules = (await Promise.all(classes.map((course) => listTeacherClassModules(course.id)))).flat()
+    return { classes, modules }
+  }, [])
   const { data, loading, error, reload } = useAsyncData(loader)
   return (
     <AppShell role="teacher" title="Classes">
       <div className="animate-enter flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-medium text-primary">Teaching workspace</p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">
+          <p className="page-kicker">Teaching workspace</p>
+          <h1 className="page-title">
             My Classes
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="page-description">
             Create and manage your active course cohorts.
           </p>
         </div>
@@ -137,7 +143,7 @@ export function TeacherClassesPage() {
           <LoadingState label="Loading your classes…" />
         ) : error ? (
           <ErrorState retry={() => void reload()} />
-        ) : !data?.length ? (
+        ) : !data?.classes.length ? (
           <EmptyState
             title="No classes yet"
             description="Create your first class to begin inviting students and instructors."
@@ -149,9 +155,9 @@ export function TeacherClassesPage() {
             }
           />
         ) : (
-          <div className="grid gap-5 xl:grid-cols-2">
-            {data.map((course) => (
-              <ClassCard key={course.id} course={course} />
+          <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-3">
+            {data.classes.map((course) => (
+              <ClassCard key={course.id} course={course} currentModule={data.modules.find((module) => module.classId === course.id && module.lifecycleStatus === 'active' && (module.status === 'active' || module.status === 'completed'))?.title} />
             ))}
           </div>
         )}

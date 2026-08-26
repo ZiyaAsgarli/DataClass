@@ -6,7 +6,7 @@ import {
   ErrorState,
   LoadingState,
 } from '@/components/common/DataState'
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useAsyncData } from '@/hooks/useAsyncData'
@@ -20,11 +20,11 @@ export function StudentAssignmentsPage() {
   return (
     <AppShell role="student" title="Assignments">
       <div>
-        <p className="text-sm font-medium text-primary">Coursework</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">
+        <p className="page-kicker">Coursework</p>
+        <h1 className="page-title">
           Assignments
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
+        <p className="page-description">
           Download task files, submit your work, and follow revision feedback.
         </p>
       </div>
@@ -39,20 +39,12 @@ export function StudentAssignmentsPage() {
             description="Your teacher has not published any coursework yet. Nothing is required from you right now."
           />
         ) : (
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-2">
             {data.map((assignment) => (
-              <Card key={assignment.id} className="p-5">
+              <Card key={assignment.id} className={assignment.submissionStatus === 'revision_requested' ? 'border-rose-300/60 bg-rose-50/55 p-5 dark:border-rose-900 dark:bg-rose-950/20 sm:p-6' : 'border-[var(--strong-border)] p-5 sm:p-6'}>
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <Badge
-                      variant={
-                        assignment.submissionStatus === 'revision_requested'
-                          ? 'outline'
-                          : 'default'
-                      }
-                    >
-                      {studentAssignmentLabel(assignment)}
-                    </Badge>
+                    <StatusBadge status={assignment.submissionStatus ?? 'upcoming'} label={studentAssignmentLabel(assignment)} />
                     <h2 className="mt-3 truncate text-lg font-semibold">
                       {assignment.title}
                     </h2>
@@ -63,13 +55,15 @@ export function StudentAssignmentsPage() {
                         : ''}
                     </p>
                   </div>
-                  <ClipboardList className="size-5 shrink-0 text-muted-foreground" />
+                  <span className="icon-tile shrink-0"><ClipboardList className="size-5" /></span>
                 </div>
                 <p className="mt-5 flex items-center gap-2 text-sm text-muted-foreground">
                   <CalendarDays className="size-4" />
                   {formatDateTime(assignment.dueAt)}
                 </p>
-                <div className="mt-5 border-t pt-4 text-right">
+                {assignment.submissionStatus === 'revision_requested' && <p className="mt-4 text-sm font-medium text-rose-800 dark:text-rose-300">Your teacher left feedback. Open this assignment to upload a corrected version.</p>}
+                <div className="mt-5 flex items-center justify-between border-t pt-4">
+                  <span className="text-xs text-muted-foreground">{assignment.lessonTitle || 'Class assignment'}</span>
                   <Button size="sm" variant="outline" asChild>
                     <Link to={`/student/assignments/${assignment.id}`}>
                       Open assignment

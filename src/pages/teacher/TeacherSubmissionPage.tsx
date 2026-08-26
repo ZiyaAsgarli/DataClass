@@ -4,7 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 import { SubmissionFileList } from '@/components/common/AssignmentFiles'
 import { ReviewDialog } from '@/components/common/AssignmentForms'
 import { ErrorState, LoadingState } from '@/components/common/DataState'
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useAsyncData } from '@/hooks/useAsyncData'
@@ -52,8 +52,8 @@ export function TeacherSubmissionPage() {
         <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex gap-2">
-              <Badge>{submissionLabel(detail.status)}</Badge>
-              {detail.wasLate && <Badge variant="outline">Late</Badge>}
+              <StatusBadge status={detail.status} label={submissionLabel(detail.status)} />
+              {detail.wasLate && <StatusBadge status="late" label="Late" />}
             </div>
             <h1 className="mt-4 text-2xl font-semibold">{detail.studentName}</h1>
             <p className="mt-1 text-sm text-muted-foreground">{detail.studentEmail}</p>

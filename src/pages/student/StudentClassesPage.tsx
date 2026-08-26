@@ -6,7 +6,7 @@ import {
   ErrorState,
   LoadingState,
 } from '@/components/common/DataState'
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useAsyncData } from '@/hooks/useAsyncData'
@@ -19,11 +19,11 @@ export function StudentClassesPage() {
   return (
     <AppShell role="student" title="My Classes">
       <div className="animate-enter">
-        <p className="text-sm font-medium text-primary">Student workspace</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">
+        <p className="page-kicker">Student workspace</p>
+        <h1 className="page-title">
           My Classes
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
+        <p className="page-description">
           Your active classes and course materials.
         </p>
       </div>
@@ -38,17 +38,17 @@ export function StudentClassesPage() {
             description="Once your teacher adds your email to a class, it will appear here after you sign in."
           />
         ) : (
-          <div className="grid gap-5 xl:grid-cols-2">
+          <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-3">
             {data.map((course) => (
               <Card
                 key={course.id}
-                className="p-5 transition-all hover:-translate-y-0.5 hover:shadow-md sm:p-6"
+                className="border-[var(--strong-border)] p-5 transition-all hover:-translate-y-1 hover:border-primary/25 hover:shadow-[0_14px_34px_rgba(37,75,52,0.1)] sm:p-6"
               >
                 <div className="flex items-start justify-between gap-4">
-                  <span className="flex size-10 items-center justify-center rounded-lg bg-accent text-primary">
+                  <span className="icon-tile">
                     <BookOpen className="size-5" />
                   </span>
-                  <Badge className="capitalize">{course.status}</Badge>
+                  <StatusBadge status={course.status} label={course.status[0].toUpperCase() + course.status.slice(1)} />
                 </div>
                 <h2 className="mt-5 text-lg font-semibold">{course.name}</h2>
                 <p className="mt-2 min-h-10 text-sm leading-5 text-muted-foreground">
