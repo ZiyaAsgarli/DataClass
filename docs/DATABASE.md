@@ -116,6 +116,13 @@ RLS is enabled on all 15 application tables. In production, `profiles` and `user
 - The `dataclass-step-7` data state is Excel Completed with SQL, Power BI, and Python Upcoming. No Active module is currently selected. These rows are development data and are not part of migration `0009` or production.
 - Step 8 adds no per-student completion, watched state, progress percentage, attendance, grading, scheduling, or Admin role.
 
+### Step 9.2 submission-avatar boundary
+
+- Migration `0010_submission_student_avatar.sql` extends only `get_submission_detail(uuid)` with `student_avatar_url`, sourced from the already-authorized submission student's `profiles.avatar_url`.
+- The function retains its original student-owner or authorized-assignment-teacher predicate, `SECURITY DEFINER` mode, `search_path = pg_catalog`, and authenticated-only execution. Anonymous and PUBLIC execution remain revoked.
+- Profile RLS and grants are unchanged. No general profile search/avatar RPC or unrelated profile field is exposed; provider metadata, tokens, and internal auth data remain outside the contract.
+- The UI maps the optional field to `SubmissionDetail.avatarUrl` and falls back to initials for missing or failed images. This change adds no grading, file-preview backend, submission transition, or storage behavior.
+
 ### Step 6A production boundary
 
 - `youtube_video_identity()` accepts strict HTTPS YouTube watch, `youtu.be`, and Shorts URLs with valid 11-character video IDs, then returns a canonical `https://www.youtube.com/watch?v=...` URL. Malformed or lookalike hosts are rejected without fetching any remote URL.
@@ -152,4 +159,4 @@ RLS is enabled on all 15 application tables. In production, `profiles` and `user
 
 ## Environment and migration safety
 
-Local connection values are held in ignored `.env.local` variables such as `DATABASE_URL` and `DATABASE_URL_UNPOOLED`; Worker secrets are held in ignored `.dev.vars`. Documentation and source files contain no credentials. Schema migrations use direct/unpooled connections and must first be tested on a child branch. Migrations `0001` through `0009` are present and validated in production. The retained development branches remain rollback/reference environments, and development-only E2E data is never promoted. Cloudflare Worker production deployment and production-origin B2 CORS remain deferred until DataClass has a real deployed origin.
+Local connection values are held in ignored `.env.local` variables such as `DATABASE_URL` and `DATABASE_URL_UNPOOLED`; Worker secrets are held in ignored `.dev.vars`. Documentation and source files contain no credentials. Schema migrations use direct/unpooled connections and must first be tested on a child branch. Migrations `0001` through `0010` are present and validated in production. The retained development branches remain rollback/reference environments, and development-only E2E data is never promoted. Cloudflare Worker production deployment and production-origin B2 CORS remain deferred until DataClass has a real deployed origin.

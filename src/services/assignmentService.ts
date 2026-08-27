@@ -135,6 +135,7 @@ export async function getSubmissionDetail(id: string): Promise<SubmissionDetail>
     id: text(row.submission_id), assignmentId: text(row.assignment_id),
     assignmentTitle: text(row.assignment_title), studentId: text(row.student_id),
     studentName: text(row.student_name), studentEmail: text(row.student_email),
+    avatarUrl: nullableText(row.student_avatar_url),
     status: text(row.submission_status) as SubmissionStatus,
     submittedAt: nullableText(row.submitted_at), reviewedAt: nullableText(row.reviewed_at),
     feedbackMessage: nullableText(row.feedback_message), canReview: row.can_review === true,

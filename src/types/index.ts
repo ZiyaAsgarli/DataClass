@@ -183,6 +183,7 @@ export interface SubmissionDetail {
   studentId: string
   studentName: string
   studentEmail: string
+  avatarUrl: string | null
   status: SubmissionStatus
   submittedAt: string | null
   reviewedAt: string | null
