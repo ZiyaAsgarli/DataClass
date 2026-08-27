@@ -1,39 +1,134 @@
-import { BookOpen, CheckCircle2, CircleHelp, ClipboardList, PlayCircle, Route, Users } from 'lucide-react'
-import { DialogFrame } from '@/components/common/CourseForms'
-import type { UserRole } from '@/types'
+import {
+  BookOpen,
+  CheckCircle2,
+  CircleHelp,
+  ClipboardList,
+  PlayCircle,
+  Route,
+  Users,
+} from "lucide-react";
+import { DialogFrame } from "@/components/common/CourseForms";
+import type { UserRole } from "@/types";
+import { useTranslation } from "react-i18next";
 
 const teacherItems = [
-  { icon: BookOpen, title: 'Create a class', detail: 'Set up the learning space for a cohort.' },
-  { icon: Users, title: 'Invite students', detail: 'Add their email addresses from the class page.' },
-  { icon: Route, title: 'Add modules and lessons', detail: 'Build the ordered course structure students will follow.' },
-  { icon: PlayCircle, title: 'Add lesson recordings', detail: 'Attach an Unlisted YouTube recording to a lesson.' },
-  { icon: ClipboardList, title: 'Publish assignments', detail: 'Add task files, then make coursework available.' },
-  { icon: CheckCircle2, title: 'Review submissions', detail: 'Give feedback, request revisions, or mark work reviewed.' },
-  { icon: Route, title: 'Set teaching status', detail: 'Use Active when teaching begins and Completed when a module finishes.' },
-]
+  {
+    icon: BookOpen,
+    title: "help.teacher.class",
+    detail: "help.teacher.classHelp",
+  },
+  {
+    icon: Users,
+    title: "help.teacher.invite",
+    detail: "help.teacher.inviteHelp",
+  },
+  {
+    icon: Route,
+    title: "help.teacher.lessons",
+    detail: "help.teacher.lessonsHelp",
+  },
+  {
+    icon: PlayCircle,
+    title: "help.teacher.recordings",
+    detail: "help.teacher.recordingsHelp",
+  },
+  {
+    icon: ClipboardList,
+    title: "help.teacher.assignments",
+    detail: "help.teacher.assignmentsHelp",
+  },
+  {
+    icon: CheckCircle2,
+    title: "help.teacher.submissions",
+    detail: "help.teacher.submissionsHelp",
+  },
+  {
+    icon: Route,
+    title: "help.teacher.lifecycle",
+    detail: "help.teacher.lifecycleHelp",
+  },
+];
 
 const studentItems = [
-  { icon: BookOpen, title: 'Open your classes', detail: 'Follow the learning path; completed modules remain available for review.' },
-  { icon: PlayCircle, title: 'Watch lesson recordings', detail: 'Open published lessons to watch classroom recordings.' },
-  { icon: BookOpen, title: 'Download resources', detail: 'Access files shared with lessons and assignments.' },
-  { icon: ClipboardList, title: 'Download task files', detail: 'Open an assignment to get its instructions and files.' },
-  { icon: CheckCircle2, title: 'Submit your work', detail: 'Upload one or more solution files, then submit.' },
-  { icon: CircleHelp, title: 'Respond to revision feedback', detail: 'When revision is requested, upload a corrected version.' },
-  { icon: Route, title: 'Review completed modules', detail: 'Completed teaching modules remain available from your class.' },
-]
+  {
+    icon: BookOpen,
+    title: "help.student.classes",
+    detail: "help.student.classesHelp",
+  },
+  {
+    icon: PlayCircle,
+    title: "help.student.recordings",
+    detail: "help.student.recordingsHelp",
+  },
+  {
+    icon: BookOpen,
+    title: "help.student.resources",
+    detail: "help.student.resourcesHelp",
+  },
+  {
+    icon: ClipboardList,
+    title: "help.student.tasks",
+    detail: "help.student.tasksHelp",
+  },
+  {
+    icon: CheckCircle2,
+    title: "help.student.submit",
+    detail: "help.student.submitHelp",
+  },
+  {
+    icon: CircleHelp,
+    title: "help.student.revision",
+    detail: "help.student.revisionHelp",
+  },
+  {
+    icon: Route,
+    title: "help.student.completed",
+    detail: "help.student.completedHelp",
+  },
+];
 
-export function WorkspaceHelp({ role, onClose }: { role: UserRole; onClose: () => void }) {
-  const items = role === 'teacher' ? teacherItems : studentItems
+export function WorkspaceHelp({
+  role,
+  onClose,
+}: {
+  role: UserRole;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const items = role === "teacher" ? teacherItems : studentItems;
   return (
-    <DialogFrame title={`${role === 'teacher' ? 'Teacher' : 'Student'} guide`} description="A quick guide to the main DataClass workflow." onClose={onClose} className="max-w-2xl">
+    <DialogFrame
+      title={t(role === "teacher" ? "help.teacherGuide" : "help.studentGuide")}
+      description={t("help.intro")}
+      onClose={onClose}
+      className="max-w-2xl"
+    >
       <ol className="mt-6 grid gap-3 sm:grid-cols-2">
         {items.map(({ icon: Icon, title, detail }, index) => (
-          <li key={title} className="flex gap-3 rounded-xl border bg-muted/30 p-3.5">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent text-primary" aria-hidden="true"><Icon className="size-4" /></span>
-            <div className="min-w-0"><p className="text-sm font-semibold"><span className="sr-only">Step {index + 1}: </span>{title}</p><p className="mt-0.5 text-xs leading-5 text-muted-foreground">{detail}</p></div>
+          <li
+            key={title}
+            className="flex gap-3 rounded-xl border bg-muted/30 p-3.5"
+          >
+            <span
+              className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent text-primary"
+              aria-hidden="true"
+            >
+              <Icon className="size-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">
+                <span className="sr-only">
+                  {t("accessibility.helpStep", { number: index + 1 })}{" "}
+                </span>
+                {t(title)}
+              </p>
+              <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+                {t(detail)}
+              </p>
+            </div>
           </li>
         ))}
       </ol>
     </DialogFrame>
-  )
+  );
 }

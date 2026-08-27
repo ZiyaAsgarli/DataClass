@@ -1,115 +1,185 @@
-import { useCallback, useId, useState, type FormEvent } from 'react'
-import { Archive, ArrowDown, ArrowLeft, ArrowUp, BookOpen, MailPlus, Plus, Save, UserPlus, UserRoundCog, Users, X } from 'lucide-react'
-import { Link, useParams } from 'react-router-dom'
-import { ModuleFormDialog } from '@/components/common/CourseForms'
-import { ErrorState, LoadingState } from '@/components/common/DataState'
-import { ModuleLifecycleBadge, ModuleLifecycleControl } from '@/components/common/ModuleLifecycle'
-import { Badge } from '@/components/ui/badge'
-import { StatusBadge } from '@/components/common/StatusBadge'
-import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { useAsyncData } from '@/hooks/useAsyncData'
-import { AppShell } from '@/layouts/AppShell'
-import { dataErrorMessage } from '@/lib/dataErrors'
-import { cn } from '@/lib/utils'
-import { addInstructor, getClassInstructors, getClassInvitations, getClassOverview, getClassStudents, inviteStudents, removeInstructor, revokeInvitation, updateClass } from '@/services/classService'
-import { createModule, listTeacherClassModules, reorderModule, setModuleLifecycle } from '@/services/moduleService'
-import type { ModuleLifecycleStatus } from '@/types'
+import { useCallback, useId, useState, type FormEvent } from "react";
+import {
+  Archive,
+  ArrowDown,
+  ArrowLeft,
+  ArrowUp,
+  BookOpen,
+  MailPlus,
+  Plus,
+  Save,
+  UserPlus,
+  UserRoundCog,
+  Users,
+  X,
+} from "lucide-react";
+import { Link, useParams } from "react-router-dom";
+import { ModuleFormDialog } from "@/components/common/CourseForms";
+import { ErrorState, LoadingState } from "@/components/common/DataState";
+import {
+  ModuleLifecycleBadge,
+  ModuleLifecycleControl,
+} from "@/components/common/ModuleLifecycle";
+import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/common/StatusBadge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { useAsyncData } from "@/hooks/useAsyncData";
+import { AppShell } from "@/layouts/AppShell";
+import { dataErrorMessage } from "@/lib/dataErrors";
+import { cn } from "@/lib/utils";
+import {
+  addInstructor,
+  getClassInstructors,
+  getClassInvitations,
+  getClassOverview,
+  getClassStudents,
+  inviteStudents,
+  removeInstructor,
+  revokeInvitation,
+  updateClass,
+} from "@/services/classService";
+import {
+  createModule,
+  listTeacherClassModules,
+  reorderModule,
+  setModuleLifecycle,
+} from "@/services/moduleService";
+import type { ModuleLifecycleStatus } from "@/types";
+import { useLocalized } from "@/i18n/useLocalized";
+import { useTranslation } from "react-i18next";
 
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const formatDate = (value: string) =>
-  new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(new Date(value))
-
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export function TeacherClassDetailPage() {
-  const { classId = '' } = useParams()
+  const {
+    t,
+    date,
+    classStatus,
+    accessLabel,
+    membershipStatus,
+    moduleLifecycle,
+  } = useLocalized();
+  const { classId = "" } = useParams();
   const loader = useCallback(async () => {
-    const overview = await getClassOverview(classId)
-    const [students, instructors, invitations, modules] = await Promise.all([getClassStudents(classId), getClassInstructors(classId), overview.currentAccess === 'owner' ? getClassInvitations(classId) : Promise.resolve([]), listTeacherClassModules(classId)])
-    return { overview, students, instructors, invitations, modules }
-  }, [classId])
-  const { data, loading, error, reload } = useAsyncData(loader)
-  const [inviteOpen, setInviteOpen] = useState(false)
-  const [instructorOpen, setInstructorOpen] = useState(false)
-  const [editing, setEditing] = useState(false)
-  const [creatingModule, setCreatingModule] = useState(false)
-  const [lifecycleBusy, setLifecycleBusy] = useState<string | null>(null)
-  const [message, setMessage] = useState('')
+    const overview = await getClassOverview(classId);
+    const [students, instructors, invitations, modules] = await Promise.all([
+      getClassStudents(classId),
+      getClassInstructors(classId),
+      overview.currentAccess === "owner"
+        ? getClassInvitations(classId)
+        : Promise.resolve([]),
+      listTeacherClassModules(classId),
+    ]);
+    return { overview, students, instructors, invitations, modules };
+  }, [classId]);
+  const { data, loading, error, reload } = useAsyncData(loader);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [instructorOpen, setInstructorOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [creatingModule, setCreatingModule] = useState(false);
+  const [lifecycleBusy, setLifecycleBusy] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
 
   if (loading)
     return (
-      <AppShell role="teacher" title="Class">
-        <LoadingState label="Loading class workspace…" />
+      <AppShell role="teacher" title="classes.class">
+        <LoadingState label="classes.loadingOne" />
       </AppShell>
-    )
+    );
   if (error || !data)
     return (
-      <AppShell role="teacher" title="Class">
-        <ErrorState retry={() => void reload()} message={dataErrorMessage(error, 'You do not have access to this class.', 'The class workspace could not be loaded. Please try again.')} />
+      <AppShell role="teacher" title="classes.class">
+        <ErrorState
+          retry={() => void reload()}
+          message={dataErrorMessage(
+            error,
+            "errors.classAccess",
+            "errors.classWorkspace",
+          )}
+        />
       </AppShell>
-    )
-  const { overview, students, instructors, invitations, modules } = data
-  const owner = overview.currentAccess === 'owner'
+    );
+  const { overview, students, instructors, invitations, modules } = data;
+  const owner = overview.currentAccess === "owner";
 
   const archive = async () => {
-    if (!window.confirm('Archive this class? Students and instructors will keep their history.')) return
+    if (!window.confirm(t("classes.archiveConfirm"))) return;
     try {
-      await updateClass(classId, overview.name, overview.description ?? '', 'archived')
-      setMessage('Class archived.')
-      await reload()
+      await updateClass(
+        classId,
+        overview.name,
+        overview.description ?? "",
+        "archived",
+      );
+      setMessage(t("classes.archived"));
+      await reload();
     } catch {
-      setMessage('The class could not be archived.')
+      setMessage(t("classes.archiveFailed"));
     }
-  }
+  };
 
-  const changeModuleLifecycle = async (moduleId: string, status: ModuleLifecycleStatus) => {
-    setLifecycleBusy(moduleId)
-    setMessage('')
+  const changeModuleLifecycle = async (
+    moduleId: string,
+    status: ModuleLifecycleStatus,
+  ) => {
+    setLifecycleBusy(moduleId);
+    setMessage("");
     try {
-      await setModuleLifecycle(moduleId, status)
-      setMessage(`Module marked ${status}.`)
-      await reload()
+      await setModuleLifecycle(moduleId, status);
+      setMessage(t("modules.marked", { status: moduleLifecycle(status) }));
+      await reload();
     } catch (error) {
-      setMessage(error instanceof Error && error.message.includes('Another module is already active')
-        ? 'Another module is already active for this class.'
-        : 'The module lifecycle could not be changed.')
+      setMessage(
+        error instanceof Error &&
+          error.message.includes("Another module is already active")
+          ? t("modules.anotherActive")
+          : t("modules.lifecycleFailed"),
+      );
     } finally {
-      setLifecycleBusy(null)
+      setLifecycleBusy(null);
     }
-  }
+  };
 
   return (
-    <AppShell role="teacher" title="Class management">
+    <AppShell role="teacher" title="classes.management">
       <div className="animate-enter">
         <Button variant="ghost" size="sm" asChild className="-ml-2 mb-5">
           <Link to="/teacher/classes">
             <ArrowLeft />
-            Back to classes
+            {t("classes.back")}
           </Link>
         </Button>
         <Card className="p-5 sm:p-7">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <StatusBadge status={overview.status} label={overview.status[0].toUpperCase() + overview.status.slice(1)} />
-                <span className="text-xs font-medium capitalize text-muted-foreground">{overview.currentAccess} access</span>
+                <StatusBadge
+                  status={overview.status}
+                  label={classStatus(overview.status)}
+                />
+                <span className="text-xs font-medium text-muted-foreground">
+                  {t("classes.access", {
+                    access: accessLabel(overview.currentAccess),
+                  })}
+                </span>
               </div>
-              <h1 className="mt-4 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">{overview.name}</h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{overview.description || 'No class description has been added.'}</p>
+              <h1 className="mt-4 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">
+                {overview.name}
+              </h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+                {overview.description || t("classes.noDescription")}
+              </p>
             </div>
             {owner && (
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" onClick={() => setEditing(true)}>
                   <Save />
-                  Edit details
+                  {t("classes.editDetails")}
                 </Button>
-                {overview.status !== 'archived' && (
+                {overview.status !== "archived" && (
                   <Button variant="outline" onClick={() => void archive()}>
                     <Archive />
-                    Archive
+                    {t("common.archive")}
                   </Button>
                 )}
               </div>
@@ -121,9 +191,21 @@ export function TeacherClassDetailPage() {
             </p>
           )}
           <div className="mt-7 grid gap-3 sm:grid-cols-3">
-            <Summary icon={Users} label="Students" value={overview.studentCount} />
-            <Summary icon={UserRoundCog} label="Instructors" value={overview.instructorCount} />
-            <Summary icon={Save} label="Created" value={formatDate(overview.createdAt)} />
+            <Summary
+              icon={Users}
+              label={t("classes.students")}
+              value={overview.studentCount}
+            />
+            <Summary
+              icon={UserRoundCog}
+              label={t("classes.instructors")}
+              value={overview.instructorCount}
+            />
+            <Summary
+              icon={Save}
+              label={t("classes.created")}
+              value={date(overview.createdAt)}
+            />
           </div>
         </Card>
       </div>
@@ -131,37 +213,52 @@ export function TeacherClassDetailPage() {
       <section className="animate-enter-delay mt-8">
         <div className="mb-4 flex items-end justify-between gap-4">
           <div>
-            <h2 className="text-lg font-semibold">Modules</h2>
-            <p className="text-sm text-muted-foreground">Course sections and their classroom lessons.</p>
+            <h2 className="text-lg font-semibold">{t("modules.title")}</h2>
+            <p className="text-sm text-muted-foreground">{t("modules.help")}</p>
           </div>
           {owner && (
             <Button size="sm" onClick={() => setCreatingModule(true)}>
               <Plus />
-              Add module
+              {t("modules.add")}
             </Button>
           )}
         </div>
         {modules.length ? (
           <div className="grid gap-4 md:grid-cols-2">
             {modules.map((module, index) => (
-              <Card key={module.id} className={cn('p-5 transition-colors', module.lifecycleStatus === 'active' && 'border-primary/45 bg-accent/25 shadow-sm')}>
+              <Card
+                key={module.id}
+                className={cn(
+                  "p-5 transition-colors",
+                  module.lifecycleStatus === "active" &&
+                    "border-primary/45 bg-accent/25 shadow-sm",
+                )}
+              >
                 <div className="flex items-start justify-between gap-4">
                   <span className="flex size-10 items-center justify-center rounded-lg bg-accent text-primary">
                     <BookOpen className="size-5" />
                   </span>
                   <div className="flex items-center gap-1">
-                    <ModuleLifecycleBadge status={module.lifecycleStatus} currentLabel />
-                    {module.status === 'archived' && <StatusBadge status="archived" label="Archived availability" />}
+                    <ModuleLifecycleBadge
+                      status={module.lifecycleStatus}
+                      currentLabel
+                    />
+                    {module.status === "archived" && (
+                      <StatusBadge
+                        status="archived"
+                        label={`${t("status.moduleAvailability.archived")} · ${t("modules.availability")}`}
+                      />
+                    )}
                     {owner && (
                       <>
                         <Button
                           size="icon"
                           variant="ghost"
                           disabled={index === 0}
-                          aria-label="Move module up"
+                          aria-label={t("accessibility.moveModuleUp")}
                           onClick={async () => {
-                            await reorderModule(module.id, 'up')
-                            await reload()
+                            await reorderModule(module.id, "up");
+                            await reload();
                           }}
                         >
                           <ArrowUp />
@@ -170,10 +267,10 @@ export function TeacherClassDetailPage() {
                           size="icon"
                           variant="ghost"
                           disabled={index === modules.length - 1}
-                          aria-label="Move module down"
+                          aria-label={t("accessibility.moveModuleDown")}
                           onClick={async () => {
-                            await reorderModule(module.id, 'down')
-                            await reload()
+                            await reorderModule(module.id, "down");
+                            await reload();
                           }}
                         >
                           <ArrowDown />
@@ -183,21 +280,46 @@ export function TeacherClassDetailPage() {
                   </div>
                 </div>
                 <h3 className="mt-5 text-lg font-semibold">{module.title}</h3>
-                <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-muted-foreground">{module.description || 'No module description has been added.'}</p>
+                <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-muted-foreground">
+                  {module.description || t("modules.noDescription")}
+                </p>
                 <div className="mt-4 space-y-1 text-xs text-muted-foreground">
-                  <p>{module.instructorNames.length ? `Instructors: ${module.instructorNames.join(', ')}` : 'Instructor: Not assigned'}</p>
                   <p>
-                    {module.lessonCount} {module.lessonCount === 1 ? 'lesson' : 'lessons'} · {module.publishedLessonCount} published
+                    {module.instructorNames.length
+                      ? t("modules.instructors", {
+                          names: module.instructorNames.join(", "),
+                        })
+                      : t("modules.instructorNone")}
+                  </p>
+                  <p>
+                    {t("common.count.lessons", { count: module.lessonCount })} ·{" "}
+                    {t("common.count.publishedLessons", {
+                      count: module.publishedLessonCount,
+                    })}
                   </p>
                 </div>
                 {owner && (
                   <div className="mt-4 flex items-center justify-between gap-3 border-t pt-4">
-                    <span className="text-xs text-muted-foreground">Teaching status</span>
-                    <ModuleLifecycleControl status={module.lifecycleStatus} canActivate={module.status === 'active' || module.status === 'completed'} disabled={lifecycleBusy === module.id} onChange={(status) => void changeModuleLifecycle(module.id, status)} />
+                    <span className="text-xs text-muted-foreground">
+                      {t("modules.teachingStatus")}
+                    </span>
+                    <ModuleLifecycleControl
+                      status={module.lifecycleStatus}
+                      canActivate={
+                        module.status === "active" ||
+                        module.status === "completed"
+                      }
+                      disabled={lifecycleBusy === module.id}
+                      onChange={(status) =>
+                        void changeModuleLifecycle(module.id, status)
+                      }
+                    />
                   </div>
                 )}
                 <Button className="mt-5 w-full" variant="outline" asChild>
-                  <Link to={`/teacher/classes/${classId}/modules/${module.id}`}>Manage module</Link>
+                  <Link to={`/teacher/classes/${classId}/modules/${module.id}`}>
+                    {t("modules.manage")}
+                  </Link>
                 </Button>
               </Card>
             ))}
@@ -207,12 +329,14 @@ export function TeacherClassDetailPage() {
             <span className="flex size-12 items-center justify-center rounded-xl bg-accent text-primary">
               <BookOpen />
             </span>
-            <h3 className="mt-4 font-semibold">No modules yet</h3>
-            <p className="mt-2 text-sm text-muted-foreground">Create the first module for this class.</p>
+            <h3 className="mt-4 font-semibold">{t("modules.none")}</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {t("modules.noneTeacher")}
+            </p>
             {owner && (
               <Button className="mt-5" onClick={() => setCreatingModule(true)}>
                 <Plus />
-                Create module
+                {t("modules.create")}
               </Button>
             )}
           </Card>
@@ -223,13 +347,15 @@ export function TeacherClassDetailPage() {
         <section>
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold">Students</h2>
-              <p className="text-sm text-muted-foreground">Active members of this class</p>
+              <h2 className="text-lg font-semibold">{t("classes.students")}</h2>
+              <p className="text-sm text-muted-foreground">
+                {t("classes.activeMembers")}
+              </p>
             </div>
             {owner && (
               <Button size="sm" onClick={() => setInviteOpen(true)}>
                 <MailPlus />
-                Invite students
+                {t("classes.invite")}
               </Button>
             )}
           </div>
@@ -237,48 +363,71 @@ export function TeacherClassDetailPage() {
             {students.length ? (
               <div className="divide-y">
                 {students.map((student) => (
-                  <div key={student.membershipId} className="flex items-center justify-between gap-4 p-4 sm:px-5">
+                  <div
+                    key={student.membershipId}
+                    className="flex items-center justify-between gap-4 p-4 sm:px-5"
+                  >
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{student.fullName}</p>
-                      <p className="truncate text-xs text-muted-foreground">{student.email}</p>
+                      <p className="truncate text-sm font-medium">
+                        {student.fullName}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {student.email}
+                      </p>
                     </div>
-                    <Badge className="capitalize">{student.status}</Badge>
+                    <Badge>{membershipStatus(student.status)}</Badge>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="p-6 text-sm text-muted-foreground">No students have joined this class yet.</p>
+              <p className="p-6 text-sm text-muted-foreground">
+                {t("classes.noStudents")}
+              </p>
             )}
           </Card>
           {owner && (
             <div className="mt-6">
-              <h3 className="mb-3 text-sm font-semibold">Pending invitations</h3>
+              <h3 className="mb-3 text-sm font-semibold">
+                {t("classes.pending")}
+              </h3>
               <Card className="overflow-hidden">
-                {invitations.filter((item) => item.status === 'pending').length ? (
+                {invitations.filter((item) => item.status === "pending")
+                  .length ? (
                   <div className="divide-y">
                     {invitations
-                      .filter((item) => item.status === 'pending')
+                      .filter((item) => item.status === "pending")
                       .map((invitation) => (
-                        <div key={invitation.id} className="flex items-center justify-between gap-4 p-4">
+                        <div
+                          key={invitation.id}
+                          className="flex items-center justify-between gap-4 p-4"
+                        >
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-medium">{invitation.email}</p>
-                            <p className="text-xs text-muted-foreground">Invited {formatDate(invitation.createdAt)}</p>
+                            <p className="truncate text-sm font-medium">
+                              {invitation.email}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {t("classes.invited", {
+                                date: date(invitation.createdAt),
+                              })}
+                            </p>
                           </div>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={async () => {
-                              await revokeInvitation(invitation.id)
-                              await reload()
+                              await revokeInvitation(invitation.id);
+                              await reload();
                             }}
                           >
-                            Revoke
+                            {t("common.revoke")}
                           </Button>
                         </div>
                       ))}
                   </div>
                 ) : (
-                  <p className="p-5 text-sm text-muted-foreground">No pending invitations.</p>
+                  <p className="p-5 text-sm text-muted-foreground">
+                    {t("classes.noPending")}
+                  </p>
                 )}
               </Card>
             </div>
@@ -288,36 +437,55 @@ export function TeacherClassDetailPage() {
         <section>
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold">Instructors</h2>
-              <p className="text-sm text-muted-foreground">Owner and participating teachers</p>
+              <h2 className="text-lg font-semibold">
+                {t("classes.instructors")}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {t("classes.ownerParticipating")}
+              </p>
             </div>
             {owner && (
-              <Button size="sm" variant="outline" onClick={() => setInstructorOpen(true)}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setInstructorOpen(true)}
+              >
                 <UserPlus />
-                Add instructor
+                {t("classes.addInstructor")}
               </Button>
             )}
           </div>
           <Card className="divide-y overflow-hidden">
             {instructors.map((instructor) => (
-              <div key={instructor.relationshipId} className="flex items-center justify-between gap-4 p-4 sm:px-5">
+              <div
+                key={instructor.relationshipId}
+                className="flex items-center justify-between gap-4 p-4 sm:px-5"
+              >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="truncate text-sm font-medium">{instructor.fullName}</p>
-                    <Badge className="capitalize">{instructor.role === 'owner' ? 'Owner / Lead' : 'Instructor'}</Badge>
+                    <p className="truncate text-sm font-medium">
+                      {instructor.fullName}
+                    </p>
+                    <Badge>
+                      {instructor.role === "owner"
+                        ? t("classes.ownerLeadShort")
+                        : accessLabel("instructor")}
+                    </Badge>
                   </div>
-                  <p className="truncate text-xs text-muted-foreground">{instructor.email}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {instructor.email}
+                  </p>
                 </div>
-                {owner && instructor.role === 'instructor' && (
+                {owner && instructor.role === "instructor" && (
                   <Button
                     size="sm"
                     variant="ghost"
                     onClick={async () => {
-                      await removeInstructor(classId, instructor.teacherId)
-                      await reload()
+                      await removeInstructor(classId, instructor.teacherId);
+                      await reload();
                     }}
                   >
-                    Remove
+                    {t("common.remove")}
                   </Button>
                 )}
               </div>
@@ -329,12 +497,12 @@ export function TeacherClassDetailPage() {
       {editing && (
         <EditDialog
           initialName={overview.name}
-          initialDescription={overview.description ?? ''}
+          initialDescription={overview.description ?? ""}
           onClose={() => setEditing(false)}
           onSave={async (name, description) => {
-            await updateClass(classId, name, description, overview.status)
-            setEditing(false)
-            await reload()
+            await updateClass(classId, name, description, overview.status);
+            setEditing(false);
+            await reload();
           }}
         />
       )}
@@ -342,17 +510,17 @@ export function TeacherClassDetailPage() {
         <ModuleFormDialog
           onClose={() => setCreatingModule(false)}
           onSave={async (title, description) => {
-            await createModule(classId, title, description)
-            setCreatingModule(false)
-            await reload()
+            await createModule(classId, title, description);
+            setCreatingModule(false);
+            await reload();
           }}
         />
       )}
       {inviteOpen && (
         <InviteDialog
           onClose={() => {
-            setInviteOpen(false)
-            void reload()
+            setInviteOpen(false);
+            void reload();
           }}
           onInvite={(emails) => inviteStudents(classId, emails)}
         />
@@ -361,20 +529,28 @@ export function TeacherClassDetailPage() {
         <InstructorDialog
           onClose={() => setInstructorOpen(false)}
           onAdd={async (email) => {
-            const outcome = await addInstructor(classId, email)
-            if (outcome === 'created') {
-              await reload()
-              setInstructorOpen(false)
+            const outcome = await addInstructor(classId, email);
+            if (outcome === "created") {
+              await reload();
+              setInstructorOpen(false);
             }
-            return outcome
+            return outcome;
           }}
         />
       )}
     </AppShell>
-  )
+  );
 }
 
-function Summary({ icon: Icon, label, value }: { icon: typeof Users; label: string; value: string | number }) {
+function Summary({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof Users;
+  label: string;
+  value: string | number;
+}) {
   return (
     <div className="rounded-lg bg-muted/45 p-4">
       <p className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -383,76 +559,133 @@ function Summary({ icon: Icon, label, value }: { icon: typeof Users; label: stri
       </p>
       <p className="mt-2 text-lg font-semibold">{value}</p>
     </div>
-  )
+  );
 }
 
-function Modal({ title, description, onClose, children }: { title: string; description: string; onClose: () => void; children: React.ReactNode }) {
-  const titleId = useId()
-  const descriptionId = useId()
+function Modal({
+  title,
+  description,
+  onClose,
+  children,
+}: {
+  title: string;
+  description: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  const { t } = useTranslation();
+  const titleId = useId();
+  const descriptionId = useId();
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={descriptionId}>
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
+    >
       <Card className="max-h-[92vh] w-full max-w-lg overflow-y-auto p-6 shadow-xl">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 id={titleId} className="text-xl font-semibold">
               {title}
             </h2>
-            <p id={descriptionId} className="mt-1 text-sm text-muted-foreground">
+            <p
+              id={descriptionId}
+              className="mt-1 text-sm text-muted-foreground"
+            >
               {description}
             </p>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close dialog">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            aria-label={t("accessibility.closeDialog")}
+          >
             <X />
           </Button>
         </div>
         {children}
       </Card>
     </div>
-  )
+  );
 }
 
-function EditDialog({ initialName, initialDescription, onClose, onSave }: { initialName: string; initialDescription: string; onClose: () => void; onSave: (name: string, description: string) => Promise<void> }) {
-  const [name, setName] = useState(initialName)
-  const [description, setDescription] = useState(initialDescription)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
+function EditDialog({
+  initialName,
+  initialDescription,
+  onClose,
+  onSave,
+}: {
+  initialName: string;
+  initialDescription: string;
+  onClose: () => void;
+  onSave: (name: string, description: string) => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const [name, setName] = useState(initialName);
+  const [description, setDescription] = useState(initialDescription);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   return (
-    <Modal title="Edit class" description="Update the class name or description." onClose={onClose}>
+    <Modal
+      title={t("classes.edit")}
+      description={t("classes.editHelp")}
+      onClose={onClose}
+    >
       <form
         className="mt-6 space-y-4"
         onSubmit={(event) => {
-          event.preventDefault()
-          setBusy(true)
-          setError('')
+          event.preventDefault();
+          setBusy(true);
+          setError("");
           void onSave(name, description)
-            .catch(() => setError('Changes could not be saved.'))
-            .finally(() => setBusy(false))
+            .catch(() => setError("classes.saveFailed"))
+            .finally(() => setBusy(false));
         }}
       >
         <label className="block text-sm font-medium">
-          Class name
-          <input value={name} onChange={(event) => setName(event.target.value)} className="mt-2 h-10 w-full rounded-md border bg-background px-3" />
+          {t("classes.name")}
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            className="mt-2 h-10 w-full rounded-md border bg-background px-3"
+          />
         </label>
         <label className="block text-sm font-medium">
-          Description
-          <textarea value={description} onChange={(event) => setDescription(event.target.value)} className="mt-2 min-h-28 w-full rounded-md border bg-background p-3" />
+          {t("common.description")}
+          <textarea
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            className="mt-2 min-h-28 w-full rounded-md border bg-background p-3"
+          />
         </label>
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && <p className="text-sm text-destructive">{t(error)}</p>}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </Button>
-          <Button disabled={busy || !name.trim()}>{busy ? 'Saving…' : 'Save changes'}</Button>
+          <Button disabled={busy || !name.trim()}>
+            {busy ? t("common.saving") : t("classes.saveChanges")}
+          </Button>
         </div>
       </form>
     </Modal>
-  )
+  );
 }
 
-function InviteDialog({ onClose, onInvite }: { onClose: () => void; onInvite: (emails: string[]) => Promise<{ email: string; outcome: string }[]> }) {
-  const [value, setValue] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [feedback, setFeedback] = useState('')
+function InviteDialog({
+  onClose,
+  onInvite,
+}: {
+  onClose: () => void;
+  onInvite: (emails: string[]) => Promise<{ email: string; outcome: string }[]>;
+}) {
+  const { t } = useTranslation();
+  const [value, setValue] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState("");
   const emails = [
     ...new Set(
       value
@@ -460,39 +693,47 @@ function InviteDialog({ onClose, onInvite }: { onClose: () => void; onInvite: (e
         .map((item) => item.trim().toLowerCase())
         .filter(Boolean),
     ),
-  ]
-  const invalid = emails.filter((email) => !emailPattern.test(email))
+  ];
+  const invalid = emails.filter((email) => !emailPattern.test(email));
   const submit = async (event: FormEvent) => {
-    event.preventDefault()
-    if (!emails.length || invalid.length) return
-    setBusy(true)
+    event.preventDefault();
+    if (!emails.length || invalid.length) return;
+    setBusy(true);
     try {
-      const result = await onInvite(emails)
-      const created = result.filter((item) => item.outcome === 'created').length
-      const skipped = result.length - created
-      setFeedback(`${created} invitation${created === 1 ? '' : 's'} created${skipped ? `; ${skipped} skipped` : ''}.`)
+      const result = await onInvite(emails);
+      const created = result.filter(
+        (item) => item.outcome === "created",
+      ).length;
+      const skipped = result.length - created;
+      setFeedback(
+        `${t("common.count.invitations", { count: created })}${skipped ? `; ${t("common.count.skipped", { count: skipped })}` : ""}.`,
+      );
     } catch {
-      setFeedback('Invitations could not be created.')
+      setFeedback(t("classes.invitationsFailed"));
     } finally {
-      setBusy(false)
+      setBusy(false);
     }
-  }
+  };
   return (
-    <Modal title="Invite students" description="Students join automatically when they sign in with an invited email. Separate addresses with a new line, comma, or semicolon." onClose={onClose}>
+    <Modal
+      title={t("classes.invite")}
+      description={t("classes.inviteHelp")}
+      onClose={onClose}
+    >
       <form className="mt-6" onSubmit={(event) => void submit(event)}>
         <textarea
           autoFocus
           value={value}
           onChange={(event) => {
-            setValue(event.target.value)
-            setFeedback('')
+            setValue(event.target.value);
+            setFeedback("");
           }}
           className="min-h-40 w-full rounded-md border bg-background p-3 text-sm"
-          placeholder={'student1@gmail.com\nstudent2@gmail.com'}
+          placeholder={"student1@gmail.com\nstudent2@gmail.com"}
         />
         {invalid.length > 0 && (
           <p className="mt-2 text-sm text-destructive">
-            Check {invalid.length} invalid email {invalid.length === 1 ? 'address' : 'addresses'}.
+            {t("common.count.invalidEmails", { count: invalid.length })}
           </p>
         )}
         {feedback && (
@@ -502,51 +743,82 @@ function InviteDialog({ onClose, onInvite }: { onClose: () => void; onInvite: (e
         )}
         <div className="mt-5 flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={onClose}>
-            Close
+            {t("common.close")}
           </Button>
-          <Button disabled={busy || !emails.length || invalid.length > 0}>{busy ? 'Inviting…' : `Invite ${emails.length || ''} student${emails.length === 1 ? '' : 's'}`}</Button>
+          <Button disabled={busy || !emails.length || invalid.length > 0}>
+            {busy
+              ? t("classes.inviting")
+              : t("classes.inviteCount", { count: emails.length })}
+          </Button>
         </div>
       </form>
     </Modal>
-  )
+  );
 }
 
-function InstructorDialog({ onClose, onAdd }: { onClose: () => void; onAdd: (email: string) => Promise<string> }) {
-  const [email, setEmail] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
+function InstructorDialog({
+  onClose,
+  onAdd,
+}: {
+  onClose: () => void;
+  onAdd: (email: string) => Promise<string>;
+}) {
+  const { t } = useTranslation();
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   return (
-    <Modal title="Add instructor" description="The teacher must already have a provisioned DataClass teacher account." onClose={onClose}>
+    <Modal
+      title={t("classes.addInstructor")}
+      description={t("classes.instructorHelp")}
+      onClose={onClose}
+    >
       <form
         className="mt-6"
         onSubmit={(event) => {
-          event.preventDefault()
+          event.preventDefault();
           if (!emailPattern.test(email.trim())) {
-            setError('Enter a valid email address.')
-            return
+            setError("classes.invalidEmail");
+            return;
           }
-          setBusy(true)
-          setError('')
+          setBusy(true);
+          setError("");
           void onAdd(email.trim())
             .then((outcome) => {
-              if (outcome !== 'created') setError(outcome === 'not_found' ? 'Teacher account not found or not yet provisioned.' : outcome === 'owner' ? 'The class owner is already assigned.' : 'This instructor is already assigned.')
+              if (outcome !== "created")
+                setError(
+                  outcome === "not_found"
+                    ? "classes.teacherNotFound"
+                    : outcome === "owner"
+                      ? "classes.ownerAssigned"
+                      : "classes.instructorAssigned",
+                );
             })
-            .catch(() => setError('The instructor could not be added.'))
-            .finally(() => setBusy(false))
+            .catch(() => setError("classes.instructorFailed"))
+            .finally(() => setBusy(false));
         }}
       >
         <label className="block text-sm font-medium">
-          Teacher email
-          <input autoFocus type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 h-10 w-full rounded-md border bg-background px-3" placeholder="teacher@example.com" />
+          {t("classes.teacherEmail")}
+          <input
+            autoFocus
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            className="mt-2 h-10 w-full rounded-md border bg-background px-3"
+            placeholder="teacher@example.com"
+          />
         </label>
-        {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+        {error && <p className="mt-2 text-sm text-destructive">{t(error)}</p>}
         <div className="mt-5 flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </Button>
-          <Button disabled={busy}>{busy ? 'Adding…' : 'Add instructor'}</Button>
+          <Button disabled={busy}>
+            {busy ? t("common.adding") : t("classes.addInstructor")}
+          </Button>
         </div>
       </form>
     </Modal>
-  )
+  );
 }
