@@ -9,7 +9,7 @@
 7. Step 7 — Assignments + Student Submissions — **Complete**
 8. Step 8 — Module Lifecycle + Learning Path — **Complete**
 9. Step 9 — Premium Product Experience — **Step 9.1 visual foundation and Step 9.2 Premium Submission Review complete**
-10. Step 10 — Notifications + Activity
+10. Step 10 — Reliability Hardening — **Step 10.1 audit and Step 10.2 auth initialization resilience complete**
 11. Step 11 — Analytics + Progress
 12. Step 12 — Security/RLS Audit
 13. Step 13 — Responsive QA + UX Polish
@@ -33,4 +33,6 @@ Step 9.1 Premium Visual Foundation is complete. Lumina/Stitch informed visual di
 
 Step 9.2 Premium Submission Review is complete. The teacher review route now presents real student context, version-grouped submission files, secure temporary downloads, plain-text feedback, and existing revision/review actions in a responsive split workspace. It intentionally adds no grading or inline file preview. Migration `0010_submission_student_avatar.sql` exposes only the existing student `profiles.avatar_url` through the already-authorized submission-detail RPC; it adds no general profile lookup and is in production with zero application rows. Initials remain the missing/broken-image fallback. Physical mobile-device QA remains a non-blocking follow-up, and Worker deployment remains deferred.
 
-Known non-blocking issue deferred to final QA / production readiness: after a full local environment or computer restart, the first authenticated workspace initialization may occasionally show “Workspace setup needs attention.” One manual “Try again” succeeds and subsequent authenticated navigation remains stable for that session. This is not considered fixed; no delay, security bypass, or RLS workaround has been introduced.
+Step 10.1 traced authenticated startup through session/token retrieval, profile bootstrap, role validation, invitation claiming, route protection, and workspace loading. StrictMode duplication, premature workspace queries, and a deterministic bootstrap defect were ruled out. During Step 10.2 a matching intermittent failure was captured at profile bootstrap with sanitized PostgreSQL code `42501`; its deeper remote readiness trigger, including any relationship to Neon cold start, remains unconfirmed.
+
+Step 10.2 separates core readiness (valid session/token, profile bootstrap, and valid roles) from invitation claiming. A failed invitation claim no longer clears valid auth state or blocks the workspace. Core failures retain the valid session where appropriate and expose only a non-identity attempt label plus typed, sanitized phase/status and allowlisted `42501` classification while preserving the existing manual Try again path. No raw database error payload, token-derived identifier, blind automatic retry, delay, database/RPC/grant change, authorization change, or production write was introduced. The exact historical authorization-context trigger remains unconfirmed; manual Try again remains the supported recovery, and the rare issue is non-blocking for a limited real-class launch while observation continues.
