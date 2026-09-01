@@ -6,6 +6,23 @@
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
     "APP_ORIGIN": "http://localhost:5173",
-    "NEON_DATA_API_URL": "https://ep-steep-truth-b11n2txh.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1"
+    "NEON_DATA_API_URL": "https://ep-steep-truth-b11n2txh.apirest.c-5.eu-central-1.aws.neon.tech/neondb/rest/v1",
+    "B2_BUCKET_NAME": "dataclass-resources",
+    "B2_S3_ENDPOINT": "https://s3.eu-central-003.backblazeb2.com",
+    "B2_REGION": "eu-central-003"
+  },
+  "secrets": {
+    "required": ["B2_KEY_ID", "B2_APPLICATION_KEY"]
+  },
+  "env": {
+    "production": {
+      "name": "dataclass-resource-signer-production",
+      // Production vars are intentionally absent until the first Vercel deployment
+      // supplies the exact HTTPS origin and the production service endpoints.
+      "vars": {},
+      "secrets": {
+        "required": ["B2_KEY_ID", "B2_APPLICATION_KEY"]
+      }
+    }
   }
 }

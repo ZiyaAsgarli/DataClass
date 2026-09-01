@@ -3,7 +3,10 @@ import type { LessonResourceRecord } from '@/types'
 
 type RpcRow = Record<string, unknown>
 
-const storageApiUrl = (import.meta.env.VITE_STORAGE_API_URL || 'http://localhost:8787').replace(/\/+$/, '')
+const storageApiUrl = import.meta.env.VITE_STORAGE_API_URL?.replace(/\/+$/, '')
+if (!storageApiUrl) {
+  throw new Error('Missing browser-safe storage API configuration.')
+}
 export const MAX_RESOURCE_BYTES = 500 * 1024 * 1024
 export const allowedResourceExtensions = new Set([
   'xlsx', 'xls', 'xlsm', 'csv', 'tsv', 'pdf', 'pbix', 'pbit',

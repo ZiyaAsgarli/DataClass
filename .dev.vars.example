@@ -1,6 +1,4 @@
-# Backblaze B2 bucket-restricted S3-compatible credentials.
+# Backblaze B2 bucket-restricted S3-compatible secret values only.
+# Non-secret local bucket configuration lives in wrangler.jsonc.
 B2_KEY_ID=replace-with-bucket-key-id
 B2_APPLICATION_KEY=replace-with-bucket-application-key
-B2_BUCKET_NAME=dataclass-resources
-B2_S3_ENDPOINT=https://s3.eu-central-003.backblazeb2.com
-B2_REGION=eu-central-003
