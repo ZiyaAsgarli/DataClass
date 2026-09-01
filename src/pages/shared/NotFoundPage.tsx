@@ -10,7 +10,7 @@ export function NotFoundPage() {
   return (
     <main className="flex min-h-screen flex-col bg-background">
       <header className="flex h-20 items-center justify-between px-6 lg:px-12">
-        <Brand />
+        <Brand className="w-[190px] sm:w-[220px]" />
         <LanguageSwitch />
       </header>
       <section className="flex flex-1 items-center justify-center px-6 pb-20 text-center">

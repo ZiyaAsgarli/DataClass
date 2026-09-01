@@ -11,7 +11,7 @@
 9. Step 9 — Premium Product Experience — **Step 9.1 visual foundation and Step 9.2 Premium Submission Review complete**
 10. Step 10 — Reliability Hardening — **Step 10.1 audit and Step 10.2 auth initialization resilience complete**
 11. Step 11 — Azerbaijani / English Localization — **Complete**
-12. Step 12 — Security/RLS Audit
+12. Step 12 — Final Branding & Logo Integration — **Complete**
 13. Step 13 — Responsive QA + UX Polish
 14. Step 14 — Production Deployment
 
@@ -38,3 +38,5 @@ Step 10.1 traced authenticated startup through session/token retrieval, profile 
 Step 10.2 separates core readiness (valid session/token, profile bootstrap, and valid roles) from invitation claiming. A failed invitation claim no longer clears valid auth state or blocks the workspace. Core failures retain the valid session where appropriate and expose only a non-identity attempt label plus typed, sanitized phase/status and allowlisted `42501` classification while preserving the existing manual Try again path. No raw database error payload, token-derived identifier, blind automatic retry, delay, database/RPC/grant change, authorization change, or production write was introduced. The exact historical authorization-context trigger remains unconfirmed; manual Try again remains the supported recovery, and the rare issue is non-blocking for a limited real-class launch while observation continues.
 
 Step 11 provides frontend-only Azerbaijani/English localization with Azerbaijani as the default, English as the secondary locale, and a persisted browser-local preference. Bundled synchronous `i18next` / `react-i18next` resources initialize before React rendering and synchronize the document language without joining the authentication critical path. Centralized localized enum/status display and `az-AZ` / `en-GB` date formatting cover the shared shell and all teacher/student workflows while user-generated course content remains verbatim. Manual bilingual visual QA passed. No database language preference, migration, RPC change, backend change, or production write was added; physical mobile-device QA remains deferred.
+
+Step 12 branding integration replaces the temporary chart-icon/HTML wordmark with the official DataClass horizontal logo and compact DC/book/data mark. Separate optimized transparent Light/Dark raster assets swap with the existing theme while the forest/sage application palette, Hanken Grotesk, Inter, localization behavior, routes, and product workflows remain unchanged. DataClass is never translated. Manual visual QA passed for the Light/Dark login, expanded teacher navigation, and collapsed mark. No clean vector master currently exists, and a custom favicon is intentionally deferred until a designer-approved simplified app mark is available. Physical-device mobile branding QA remains a non-blocking follow-up.

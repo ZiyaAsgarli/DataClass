@@ -73,7 +73,10 @@ export function Sidebar({
         )}
       >
         <div className="flex h-[72px] items-center justify-between border-b border-primary/10 px-5">
-          <Brand compact={collapsed} />
+          <Brand
+            variant={collapsed ? "mark" : "full"}
+            className={collapsed ? "w-10" : "w-[164px]"}
+          />
           <Button
             variant="ghost"
             size="icon"

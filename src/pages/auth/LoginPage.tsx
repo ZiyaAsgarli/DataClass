@@ -63,7 +63,7 @@ export function LoginPage() {
   return (
     <main className="relative min-h-screen overflow-hidden bg-background">
       <header className="absolute inset-x-0 top-0 z-10 flex h-20 items-center justify-between px-5 sm:px-8 lg:px-12">
-        <Brand />
+        <Brand className="w-[190px] sm:w-[230px]" />
         <div className="flex items-center gap-2">
           <LanguageSwitch />
           <ThemeToggle />

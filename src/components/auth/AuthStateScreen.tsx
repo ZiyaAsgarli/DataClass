@@ -16,7 +16,7 @@ export function AuthStateScreen({
     <main className="flex min-h-screen items-center justify-center bg-muted/30 px-5">
       <Card className="w-full max-w-md p-7 text-center shadow-[0_18px_55px_rgba(0,0,0,0.08)]">
         <div className="mb-7 flex justify-center">
-          <Brand />
+          <Brand className="w-[190px] sm:w-[220px]" />
         </div>
         {error ? (
           <>
