@@ -7,6 +7,7 @@ export type AuthInitializationPhase = 'session' | 'profile-bootstrap' | 'role-va
 export type AuthInitializationIssueCode =
   | 'AUTH_INIT_SESSION_FAILED'
   | 'AUTH_INIT_PROFILE_BOOTSTRAP_FAILED'
+  | 'AUTH_INIT_PROFILE_BOOTSTRAP_IDENTITY_RETRY'
   | 'AUTH_INIT_ROLE_VALIDATION_FAILED'
   | 'AUTH_INIT_INVITATION_CLAIM_FAILED'
 
@@ -25,6 +26,9 @@ export interface AuthInitializationIssue {
   databaseCode: string | null
   privilegeCategory: AuthInitializationPrivilegeCategory | null
   tokenPresent: boolean
+  bootstrapAttempt?: 1 | 2
+  sessionPresent?: boolean
+  retrySucceeded?: boolean
   occurredAt: string
 }
 
