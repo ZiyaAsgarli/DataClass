@@ -1,6 +1,7 @@
 import { createDownloadUrl, createUploadUrl, deleteObject, inspectObject } from './lib/b2'
 import { callNeonRpc, firstRow, NeonAuthorizationError, requireBearerToken } from './lib/neonAuth'
 import { corsHeaders, emptyResponse, errorResponse, jsonResponse } from './lib/responses'
+import { runDeleteStorageOperation, runFinalizeStorageOperation } from './lib/storageOperations'
 import {
   RequestValidationError,
   requireUuid,
@@ -40,19 +41,20 @@ async function uploadIntent(request: Request, env: WorkerEnv, token: string) {
 
 async function finalizeUpload(request: Request, env: WorkerEnv, token: string) {
   const resourceId = validateResourceRequest(await jsonBody(request))
-  const rows = await callNeonRpc<ResourceStorageRow[]>(env, token, 'get_lesson_resource_upload_state', {
-    target_resource_id: resourceId,
+  const result = await runFinalizeStorageOperation({
+    getState: async () => firstRow(await callNeonRpc<ResourceStorageRow[]>(
+      env, token, 'get_lesson_resource_upload_state', { target_resource_id: resourceId },
+    )),
+    inspectObject: async (storagePath) => await inspectObject(env, storagePath),
+    finalize: async (fileSize, etag) => await callNeonRpc<null>(env, token, 'finalize_lesson_resource_upload', {
+      target_resource_id: resourceId,
+      verified_file_size_bytes: fileSize,
+      verified_storage_etag: etag,
+    }),
   })
-  const resource = firstRow(rows)
-  const object = await inspectObject(env, resource.storage_path)
-  if (object.ContentLength == null || Number(object.ContentLength) !== Number(resource.file_size_bytes)) {
+  if (!result.sizeMatches) {
     return errorResponse(request, env, 409, 'The uploaded object size does not match the expected file.')
   }
-  await callNeonRpc<null>(env, token, 'finalize_lesson_resource_upload', {
-    target_resource_id: resourceId,
-    verified_file_size_bytes: Number(object.ContentLength),
-    verified_storage_etag: object.ETag ?? null,
-  })
   return jsonResponse(request, env, { resourceId, status: 'ready' })
 }
 
@@ -68,13 +70,14 @@ async function downloadUrl(request: Request, env: WorkerEnv, token: string) {
 
 async function removeResource(request: Request, env: WorkerEnv, token: string, resourceId: string) {
   const id = requireUuid(resourceId, 'Resource')
-  const rows = await callNeonRpc<ResourceStorageRow[]>(env, token, 'authorize_lesson_resource_delete', {
-    target_resource_id: id,
-  })
-  const resource = firstRow(rows)
-  await deleteObject(env, resource.storage_path)
-  await callNeonRpc<null>(env, token, 'delete_lesson_resource_metadata', {
-    target_resource_id: id,
+  await runDeleteStorageOperation({
+    authorize: async () => firstRow(await callNeonRpc<ResourceStorageRow[]>(
+      env, token, 'authorize_lesson_resource_delete', { target_resource_id: id },
+    )),
+    deleteObject: async (storagePath) => await deleteObject(env, storagePath),
+    deleteMetadata: async () => await callNeonRpc<null>(env, token, 'delete_lesson_resource_metadata', {
+      target_resource_id: id,
+    }),
   })
   return emptyResponse(request, env)
 }

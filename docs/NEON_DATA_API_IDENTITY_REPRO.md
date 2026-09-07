@@ -77,3 +77,30 @@ The captured failure was not caused by:
 - the wrong Neon Auth endpoint
 
 The bearer token, cookie, user identity, endpoint identity, and project identity must remain redacted in any support exchange.
+
+## Worker-side reproduction
+
+The same identity propagation failure has also been captured when the browser calls the private-storage signing Worker:
+
+```text
+Valid browser bearer
+        |
+        v
+Cloudflare Worker validates the request shape
+        |
+        v
+Worker forwards the same bearer to the Neon Data API
+        |
+        v
+PostgreSQL executes a read-only authorization RPC
+        |
+        v
+auth.uid() unexpectedly returns NULL
+        |
+        v
+RPC raises SQLSTATE 42501
+```
+
+The underlying resource, teacher role, class-teacher relationship, and B2 object were independently confirmed to exist. B2 deletion was not reached because the read-only authorization RPC failed first. The Worker cannot refresh the user's Neon Auth JWT and does not alter or decode it.
+
+The Worker-side bounded retry is an application resilience workaround only. It repeats an explicitly allowlisted read-only authorization or state lookup once with the unchanged bearer after a short delay. It does not retry prepare, finalize, or metadata-delete mutations, does not weaken database authorization, and does not establish that the underlying Neon identity propagation issue is fixed.
