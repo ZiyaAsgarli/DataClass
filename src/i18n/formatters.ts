@@ -1,30 +1,69 @@
 const locales = { az: "az-AZ", en: "en-GB" } as const;
+const azerbaijaniMonths = [
+  "yanvar",
+  "fevral",
+  "mart",
+  "aprel",
+  "may",
+  "iyun",
+  "iyul",
+  "avqust",
+  "sentyabr",
+  "oktyabr",
+  "noyabr",
+  "dekabr",
+] as const;
+
+type DateInput = string | Date | null | undefined;
+
 export function appLocale(language: string) {
   return locales[language === "en" ? "en" : "az"];
 }
+
+function resolveDate(value: DateInput) {
+  if (!value) return null;
+  const date =
+    value instanceof Date
+      ? value
+      : /^\d{4}-\d{2}-\d{2}$/.test(value)
+        ? new Date(`${value}T00:00:00`)
+        : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatAzerbaijaniDate(date: Date) {
+  return `${date.getDate()} ${azerbaijaniMonths[date.getMonth()]} ${date.getFullYear()}`;
+}
+
 export function formatDate(
-  value: string | null | undefined,
+  value: DateInput,
   language: string,
   fallback: string,
 ) {
-  if (!value) return fallback;
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(value)
-    ? new Date(`${value}T00:00:00`)
-    : new Date(value);
+  const date = resolveDate(value);
+  if (!date) return fallback;
+  if (language !== "en") return formatAzerbaijaniDate(date);
   return new Intl.DateTimeFormat(appLocale(language), {
     dateStyle: "medium",
   }).format(date);
 }
 export function formatDateTime(
-  value: string | null | undefined,
+  value: DateInput,
   language: string,
   fallback: string,
 ) {
-  if (!value) return fallback;
+  const date = resolveDate(value);
+  if (!date) return fallback;
+  if (language !== "en") {
+    const time = new Intl.DateTimeFormat(appLocale(language), {
+      timeStyle: "short",
+    }).format(date);
+    return `${formatAzerbaijaniDate(date)} ${time}`;
+  }
   return new Intl.DateTimeFormat(appLocale(language), {
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(new Date(value));
+  }).format(date);
 }
 export function formatFileSize(value: number, language: string) {
   const amount =

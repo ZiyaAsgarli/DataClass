@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, CircleHelp, LogOut, X } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { Brand } from "@/components/common/Brand";
@@ -43,6 +43,35 @@ export function Sidebar({
   const { profile, user, signOut } = useAuth();
   const navigate = useNavigate();
   const [signOutError, setSignOutError] = useState(false);
+  const [desktop, setDesktop] = useState(() => window.matchMedia("(min-width: 1024px)").matches);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const closeRef = useRef(onClose);
+  useEffect(() => { closeRef.current = onClose; }, [onClose]);
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1024px)");
+    const sync = () => { setDesktop(media.matches); if (media.matches) closeRef.current(); };
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+  useEffect(() => {
+    if (!mobileOpen || desktop) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const sidebar = sidebarRef.current;
+    const controls = () => Array.from(sidebar?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex="0"]') ?? [])
+      .filter((element) => element.getClientRects().length > 0);
+    controls()[0]?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); closeRef.current(); }
+      if (event.key !== "Tab") return;
+      const items = controls();
+      const first = items[0];
+      const last = items.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("keydown", onKey); previous?.focus(); };
+  }, [mobileOpen, desktop]);
   const displayName =
     profile?.fullName || user?.name || t("common.dataClassUser");
   const avatarUrl = profile?.avatarUrl || user?.image;
@@ -66,6 +95,8 @@ export function Sidebar({
         />
       )}
       <aside
+        ref={sidebarRef}
+        inert={!desktop && !mobileOpen}
         className={cn(
           "fixed inset-y-0 left-0 z-50 flex w-[272px] flex-col border-r bg-[var(--sidebar)] transition-[width,transform] duration-200 lg:z-30",
           collapsed && "lg:w-20",
@@ -109,6 +140,7 @@ export function Sidebar({
                 end={item.href === `/${role}`}
                 onClick={onClose}
                 title={collapsed ? t(item.label) : undefined}
+                aria-label={t(item.label)}
                 className={({ isActive }) =>
                   cn(
                     "relative flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-card/60 hover:text-foreground",
