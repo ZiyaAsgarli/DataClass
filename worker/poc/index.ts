@@ -1,4 +1,4 @@
-import { executePocOperation } from './database.ts'
+import { executePocOperation, PocDatabaseUnavailableError } from './database.ts'
 import { parsePocOperationRequest, PocRequestError, type PocOperationName } from './registry.ts'
 import { PocAuthenticationError, verifyNeonJwt } from './verifyNeonJwt.ts'
 
@@ -10,6 +10,7 @@ export interface PocWorkerEnv {
   POC_APP_ORIGIN: string
   POC_NEON_JWT_ISSUER: string
   POC_NEON_JWT_AUDIENCE: string
+  POC_NEON_JWKS_URL: string
   HYPERDRIVE: { connectionString: string }
 }
 
@@ -39,6 +40,15 @@ function jsonResponse(request: Request, env: PocWorkerEnv, status: number, value
   return new Response(JSON.stringify(value), {
     status,
     headers: responseHeaders(request, env),
+  })
+}
+
+function databaseUnavailableResponse(request: Request, env: PocWorkerEnv) {
+  return jsonResponse(request, env, 503, {
+    error: {
+      code: 'GATEWAY_DATABASE_UNAVAILABLE',
+      message: 'The service is temporarily unavailable.',
+    },
   })
 }
 
@@ -120,6 +130,7 @@ export async function handlePocGateway(
     const verified = await verify(token, {
       issuer: env.POC_NEON_JWT_ISSUER,
       audience: env.POC_NEON_JWT_AUDIENCE,
+      jwksUrl: env.POC_NEON_JWKS_URL,
     })
     const operationRequest = parsePocOperationRequest(await readLimitedJson(request))
     const execute = dependencies.execute ?? defaultExecute
@@ -132,12 +143,29 @@ export async function handlePocGateway(
     if (error instanceof PocRequestError) {
       return jsonResponse(request, env, 400, { error: error.message })
     }
-    return jsonResponse(request, env, 502, { error: 'The PoC operation failed.' })
+    if (error instanceof PocDatabaseUnavailableError) {
+      return databaseUnavailableResponse(request, env)
+    }
+    return jsonResponse(request, env, 500, {
+      error: {
+        code: 'GATEWAY_INTERNAL_ERROR',
+        message: 'The service encountered an unexpected error.',
+      },
+    })
   }
 }
 
 export default {
-  fetch(request, env) {
-    return handlePocGateway(request, env)
+  async fetch(request, env) {
+    try {
+      return await handlePocGateway(request, env)
+    } catch {
+      return jsonResponse(request, env, 500, {
+        error: {
+          code: 'GATEWAY_INTERNAL_ERROR',
+          message: 'The service encountered an unexpected error.',
+        },
+      })
+    }
   },
 } satisfies ExportedHandler<PocWorkerEnv>

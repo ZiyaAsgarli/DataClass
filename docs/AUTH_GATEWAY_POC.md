@@ -1,18 +1,18 @@
 # Isolated Auth Gateway Proof of Concept
 
-Prepared on the isolated `dataclass-step-16-auth-gateway` branch. This PoC was not deployed or applied to any database. The production frontend, Data API path, storage Worker, Neon project, database, B2 state, and frozen Lesson 1 XLSX incident remain unchanged.
+Prepared on the isolated `dataclass-step-16-auth-gateway` branch. Step 16.2 created a separate, clean Neon project, enabled branch-local Neon Auth there, applied the PoC fixture to that database, created a dedicated cache-disabled Hyperdrive configuration, and deployed the separate PoC Worker to its own `workers.dev` hostname. No production route, data, credential, binding, application, Worker, database, B2 state, or frozen Lesson 1 XLSX row or object was used or changed.
 
 ## Audit findings
 
 The installed client stack is `@neondatabase/neon-js` 0.7.0-beta with `@neondatabase/auth` 0.5.0-beta, Better Auth 1.6.23, and a standards-based `jose` implementation. The current frontend obtains its JWT through the unchanged transformed/cached `getSession()` path. The existing storage Worker only forwards that bearer to the Data API and has no direct PostgreSQL transport.
 
-The authoritative issuer is the exact HTTPS Neon Auth base URL for the branch, including its database/auth path. Prior sanitized production validation confirmed that the JWT audience matches that same base URL and that `sub` is the UUID used by `neon_auth.user.id` and `public.profiles.id`. The PoC requires issuer and audience as fixed server-side configuration; it never derives either from token claims.
+The live isolated token contract differs from the original Step 16.1 assumption. The authoritative issuer and audience are both the exact HTTPS origin of the branch Auth service. `NEON_AUTH_BASE_URL` additionally contains the database/Auth API path and is not the issuer. The JWT `sub` is the UUID stored for the synthetic Auth user and used by the synthetic `public.profiles.id`. The PoC requires issuer and audience as fixed server-side configuration; it never derives either from token claims.
 
-The current Auth deployment exposes JWKS at the fixed issuer-relative path `/.well-known/jwks.json`. A sanitized capability check returned HTTP 200, one public OKP key, and EdDSA. The adapter-style `/jwt`, generic `/jwks`, and issuer-relative OpenID discovery candidates returned 404. The PoC therefore derives the HTTPS JWKS URL from the configured issuer plus the confirmed fixed path. It ignores `jku`, `x5u`, and all other token-provided network locations.
+The isolated Auth deployment exposes JWKS below the database/Auth API base path at `/.well-known/jwks.json`, on the same HTTPS origin as the issuer. Because this is not issuer-relative, the Worker now requires the exact trusted JWKS URL as separate server-side configuration. Live tokens use EdDSA, require `iss`, `aud`, `sub`, and `exp`, and did not include `nbf`; `nbf` remains enforced when supplied. The verifier ignores `jku`, `x5u`, and all other token-provided network locations.
 
-Cloudflare documents node-postgres as its recommended PostgreSQL driver and Hyperdrive as the preferred connection path. Direct Worker TCP/TLS is technically available without Hyperdrive, and the already-installed Neon serverless driver can also run interactive WebSocket transactions, but neither is selected for this PoC. The selected transport is node-postgres through a dedicated Hyperdrive binding because it provides the supported Worker connection path while retaining a checked-out connection for `BEGIN` through `COMMIT`. Identity-sensitive query caching must be disabled on that binding. The repository currently has no Hyperdrive configuration or Worker-side database credential/binding. Local developer database environment names exist, but they are not a Worker credential mechanism and are not reused by this design.
+Cloudflare documents node-postgres as its recommended PostgreSQL driver and Hyperdrive as the preferred connection path. The live PoC uses node-postgres through a dedicated Hyperdrive binding and retains one client for `BEGIN` through `COMMIT`. Query caching is disabled on that binding. Hyperdrive contains only the restricted isolated database credential. The repository template contains no live Hyperdrive identifier or credential; live configuration remains outside the repository.
 
-References: [Cloudflare PostgreSQL and Hyperdrive](https://developers.cloudflare.com/hyperdrive/examples/connect-to-postgres/), [Hyperdrive transaction-local SET behavior](https://developers.cloudflare.com/hyperdrive/concepts/how-hyperdrive-works/), [Neon serverless driver transactions](https://neon.com/docs/serverless/serverless-driver), and [Better Auth JWT validation defaults](https://better-auth.com/docs/plugins/jwt).
+References: [Cloudflare PostgreSQL and Hyperdrive](https://developers.cloudflare.com/hyperdrive/examples/connect-to-postgres/), [Hyperdrive transaction-local SET behavior](https://developers.cloudflare.com/hyperdrive/concepts/how-hyperdrive-works/), [Hyperdrive limits](https://developers.cloudflare.com/hyperdrive/platform/limits/), [Neon branchable Auth](https://neon.com/blog/handling-auth-in-a-staging-environment), and [Better Auth JWT validation defaults](https://better-auth.com/docs/plugins/jwt).
 
 ## Dependencies
 
@@ -33,7 +33,7 @@ This operation is parameter-free, read-only, stable, returns a small determinist
 `worker/poc/verifyNeonJwt.ts` uses `jose` with these fail-closed rules:
 
 - EdDSA is the only accepted algorithm; `none` and other algorithms are rejected.
-- Signature keys come only from the fixed HTTPS issuer-relative JWKS URL.
+- Signature keys come only from a separate fixed HTTPS JWKS URL on the trusted Auth origin.
 - Issuer and audience must exactly match fixed server configuration.
 - `iss`, `aud`, `sub`, and `exp` are required.
 - Expiration is enforced; `nbf` is enforced when present.
@@ -56,17 +56,28 @@ The PoC endpoint is `POST /internal-poc/rpc` in a separate `worker/poc` entrypoi
 
 Extra fields, actor/user identity, parameters, unknown operations, and SQL-like operation strings are rejected. Browser input never becomes an SQL identifier or SQL fragment.
 
-The database executor uses one checked-out client for the entire sequence:
+The database executor creates one new `pg.Client` inside each Worker request and uses that same request-scoped client for the entire sequence. There is no application `pg.Pool` and no module-global client; Hyperdrive owns infrastructure-level pooling. The executor applies a Worker-owned 12-second response deadline:
 
 1. `BEGIN`
-2. Parameterized transaction-local `set_config('app.verified_actor_id', verified_sub, true)`
-3. Assert `app_private.current_actor_id()` equals the verified subject
-4. Execute the registry-owned fixed SQL for the one operation
-5. `COMMIT`
-6. Assert the actor helper returns null outside the transaction
-7. Close/discard the client
+2. Set transaction-local statement and idle-transaction timeouts
+3. Parameterized transaction-local `set_config('app.verified_actor_id', verified_sub, true)`
+4. Assert `app_private.current_actor_id()` equals the verified subject
+5. Execute the registry-owned fixed SQL for the one operation
+6. `COMMIT`
+7. Assert the actor helper returns null outside the transaction
+8. Close a successfully connected, still-usable client
 
-An error before commit causes `ROLLBACK`; a rollback failure cannot replace the original error and the connection is still discarded. There is no Data API fallback.
+An error after `BEGIN` and before a confirmed commit causes one `ROLLBACK`; a failure before `BEGIN` does not. Rollback and cleanup failures cannot replace the original error. A failed connect or asynchronously broken socket is left to node-postgres' connection-error path instead of issuing a second close. There is no Data API fallback and no transaction retry.
+
+The complete fetch path has a final response boundary. Database connection, query, transaction, rollback, cleanup, and timeout failures normalize to HTTP 503 JSON with the stable `GATEWAY_DATABASE_UNAVAILABLE` code and a generic message. PostgreSQL text, SQL, host, port, database, credentials, stack traces, and infrastructure identifiers are never returned or logged.
+
+### Hyperdrive failure-boundary hardening
+
+The pre-hardening deadline used `Promise.race`, but its timer called `client.end()` before rejecting the deadline promise. During concurrent failed Hyperdrive origin handshakes, `pg-cloudflare` could synchronously enter its writer/close path before the socket writer existed. That throw occurred before `reject()`, so the deadline promise remained unresolved. Cloudflare's exception tail classified the five escaped requests as “the script will never generate a response,” and the edge returned Error 1101 HTML. This was application lifecycle handling, not cross-request identity reuse or a PostgreSQL authorization failure.
+
+The hardened deadline first marks the request expired and rejects with the normalized database error. It never manipulates an in-flight socket. The database lifecycle promise has its own complete catch/finally handling; if a delayed connection eventually resolves, it observes the expired flag before starting a transaction and safely disposes that connected client. Transaction-local PostgreSQL statement and idle-transaction timeouts remain in force after `BEGIN`.
+
+A request-scoped node-postgres `error` listener marks an asynchronously broken connected client unusable and prevents an unhandled EventEmitter exception. It does not retry, start cleanup work, expose error detail, or make the client reusable. This matches Cloudflare's current guidance to construct a new `Client` per request using only the Hyperdrive connection string while Hyperdrive maintains the underlying pool.
 
 ## Application-owned actor helper
 
@@ -79,7 +90,7 @@ The fixture separates two roles:
 - `dataclass_gateway_poc` is the restricted LOGIN used by the Worker. It has no superuser, BYPASSRLS, database/schema ownership, role administration, database creation, DDL, public-table SELECT, or public-function execution. It receives only database connection, schema usage for the two PoC schemas, and execute rights for the actor assertion and one PoC function.
 - `dataclass_gateway_poc_owner` is a NOLOGIN capability/function owner. It owns only the two PoC schemas/functions and receives SELECT only on `classes`, `class_members`, and `profiles`, which the selected operation requires. Three isolated PoC SELECT policies allow this NOLOGIN owner to evaluate the fixed function; the function itself applies the verified membership predicate and is the only data capability exposed to the LOGIN.
 
-The isolated database must revoke public temporary-database privileges plus public-schema usage/creation and default public-function execution as included in the fixture, while retaining the existing direct grants for application roles. The fixture asserts that the gateway login cannot use/create in `public`, create temporary tables, or select `public.classes` directly. A credential is created and stored only through the isolated backend/Hyperdrive setup; no password or connection value exists in this repository.
+The clean fixture creates only synthetic `profiles`, `classes`, and `class_members` tables. RLS is enabled and forced on all three. Public temporary-database privileges, public-schema usage/creation, public table access, and public function execution are revoked. The fixture and live probes confirm that the gateway login cannot select the tables, create regular or temporary objects, assume the capability role, or alter the actor helper. No password or connection value exists in this repository.
 
 ## Test matrix
 
@@ -99,32 +110,36 @@ The isolated database must revoke public temporary-database privileges plus publ
 | L. SQL-like operation/argument input cannot reach a query identifier | PASS |
 | M. Rollback clears actor before the next user | PASS |
 
-Additional coverage proves `alg=none` rejection, token-provided key URL rejection, transaction-local context assertion, post-commit clearing, exact fixed SQL, and a disabled endpoint returning 404 before authentication or database work.
+Additional coverage proves `alg=none` rejection, token-provided key URL rejection, transaction-local context assertion, post-commit clearing, exact fixed SQL, result normalization, and a disabled endpoint returning 404 before authentication or database work. Failure injection covers connect, `BEGIN`, actor setup, operation query, `COMMIT`, rollback, disposal, asynchronous pg error events, concurrent connection failures, stalled connections, recovery for users A and B, and alternating failure/success isolation.
 
-## Live PoC status
+## Live isolated proof
 
-`LIVE_POC_BLOCKED_BY_ISOLATED_INFRA`
+The identity architecture is live-proven on real isolated infrastructure:
 
-The repository is linked to Neon and local developer connection names exist, but the audit found no clearly named/verified isolated PoC branch, no Hyperdrive binding, no restricted PoC roles/helper/function, no provisioned isolated PoC Worker environment, and no confirmed synthetic Auth users for two-identity validation. Production cannot substitute for these resources.
-
-The required isolated resources are:
-
-1. A dedicated Neon development branch/database containing synthetic-only DataClass rows
-2. Two synthetic Neon Auth users on that isolated branch
-3. The SQL fixture applied only to that isolated database
-4. A dedicated Hyperdrive configuration pointing only to the restricted PoC login, with query caching disabled
-5. A separate non-production Worker configuration for the `worker/poc` entrypoint with fixed issuer, audience, exact origin, and enabled flag
+- The Neon project was created clean rather than branched from production. It contains exactly two synthetic Auth users, four synthetic profiles, two synthetic classes, and two distinct memberships. It contains no production application rows.
+- The actual restricted roles, schema/function owners, fixed search paths, RLS flags, policies, grants, and revocations match the design.
+- User A receives only the A fixture and User B receives only the B fixture.
+- The sequence A, B, A, B, B, A and twelve simultaneous alternating A/B requests produced zero cross-user results.
+- Actor context is null outside the transaction and after both commit and forced rollback. A forced SQL failure returned sanitized JSON and the next A/B sequence remained isolated.
+- Missing, malformed, tampered-signature, expired, wrong-issuer, and wrong-audience JWT cases were rejected. Wrong issuer and audience were tested independently by temporarily changing only the PoC Worker's fixed expectation, then restoring it.
+- Fake browser identity, unknown operation, arbitrary function, and SQL-like operation inputs were rejected by the one-entry registry.
+- Result field names, nullability, ISO timestamp serialization, and empty arrays match the existing RPC contract. Node-postgres returns `bigint` as text, so the registry normalizes the bounded `student_count` to a safe JSON number.
+- A 15-second synthetic query was canceled by the transaction-local ten-second statement timeout. Normal requests succeeded after restoration.
+- Before hardening, concurrent invalid-credential/origin failures produced one sanitized response and five Cloudflare 1101 HTML responses. Cloudflare exception events identified unresolved response promises caused by the deadline's premature socket close.
+- After hardening, the same bounded six-request live failure test returned six HTTP 503 `application/json` responses with the exact sanitized gateway error, no 1101 response, no detail leakage, and no retry. Healthy A/B requests, alternating and concurrent identity isolation, commit/rollback clearing, JWT rejections, allowlist rejections, privilege probes, and result compatibility all passed again after the database credential was restored.
 
 ## Security review
 
 - Arbitrary SQL/function invocation: impossible through the static one-entry registry.
 - Actor source: verified JWT subject only; browser actor fields are rejected.
 - JWT behavior: fixed key source and claims contract; failures stop before database execution.
-- Database secret boundary: future Hyperdrive/Worker-only configuration; no frontend value.
+- Database secret boundary: isolated Hyperdrive/Worker-only configuration; no frontend value.
 - Cross-user state: transaction-local, asserted before operation and after commit, cleared on rollback, and tested in alternating order on a reused client.
 - Database role: dedicated least-privilege LOGIN plus a narrow NOLOGIN function owner.
-- Production exposure: absent because the production Worker entrypoint/config is unchanged and the separate PoC entrypoint defaults unavailable without explicit isolated bindings and enablement.
+- Production exposure: absent. The live Worker uses only its separate `workers.dev` hostname, an exact synthetic test origin, a separate Hyperdrive binding, and no B2 binding or production domain route. The repository template still defaults disabled.
 
 ## Exact next migration step
 
-Before Step 16.2 changes any application path, provision and approve the five isolated resources above, apply this fixture only there, and execute one live read-only two-user proof. Compare the gateway result contract with the existing Data API response. If that proof passes, convert the reviewed actor/role design into a new forward migration, inventory final identity-dependent helpers/RPCs/policies, and plan a coordinated transport cutover. Do not edit historical migrations, expose the PoC endpoint in production, or change existing frontend RPC callers during this PoC.
+**Final recommendation: SAFE TO PROCEED TO STAGED FULL IDENTITY MIGRATION.**
+
+The identity and failure-boundary architecture is live-proven enough to begin the isolated Step 16.3 migration inventory. Step 16.3 should inventory every identity-dependent helper/RPC/policy, classify read and mutation semantics, define per-operation result normalization, and expand the allowlist incrementally in the retained isolated environment. Production rollout still requires a forward-only database migration, production token-contract verification, least-privilege grants for each operation, concurrency/load limits, observability codes, and coordinated frontend transport changes. Historical migrations, production Data API callers, production Worker routes, and storage must remain unchanged until that plan is approved.

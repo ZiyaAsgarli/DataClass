@@ -17,10 +17,14 @@ BEGIN
 END
 $roles$;
 
-ALTER ROLE dataclass_gateway_poc_owner
-  NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT;
-ALTER ROLE dataclass_gateway_poc
-  LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT;
+DO $owner_membership$
+BEGIN
+  EXECUTE pg_catalog.format(
+    'GRANT dataclass_gateway_poc_owner TO %I',
+    current_user
+  );
+END
+$owner_membership$;
 
 CREATE SCHEMA app_private AUTHORIZATION dataclass_gateway_poc_owner;
 CREATE SCHEMA app_poc AUTHORIZATION dataclass_gateway_poc_owner;
@@ -29,8 +33,38 @@ REVOKE ALL ON SCHEMA app_private, app_poc FROM PUBLIC;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 REVOKE USAGE ON SCHEMA public FROM PUBLIC;
 REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC;
-GRANT USAGE ON SCHEMA public TO authenticated;
 GRANT USAGE ON SCHEMA app_private, app_poc TO dataclass_gateway_poc;
+
+CREATE TABLE public.profiles (
+  id uuid PRIMARY KEY,
+  full_name text NOT NULL
+);
+
+CREATE TABLE public.classes (
+  id uuid PRIMARY KEY,
+  name text NOT NULL,
+  description text,
+  status text NOT NULL CHECK (status IN ('draft', 'active', 'completed', 'archived')),
+  teacher_id uuid NOT NULL REFERENCES public.profiles(id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE public.class_members (
+  class_id uuid NOT NULL REFERENCES public.classes(id),
+  student_id uuid NOT NULL REFERENCES public.profiles(id),
+  status text NOT NULL CHECK (status IN ('active', 'completed', 'removed')),
+  PRIMARY KEY (class_id, student_id)
+);
+
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.classes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.classes FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.class_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.class_members FORCE ROW LEVEL SECURITY;
+
+REVOKE ALL ON public.profiles, public.classes, public.class_members FROM PUBLIC;
 
 CREATE FUNCTION app_private.current_actor_id()
 RETURNS uuid
@@ -157,5 +191,14 @@ BEGIN
   END IF;
 END
 $least_privilege_assertions$;
+
+DO $drop_owner_membership$
+BEGIN
+  EXECUTE pg_catalog.format(
+    'REVOKE dataclass_gateway_poc_owner FROM %I',
+    current_user
+  );
+END
+$drop_owner_membership$;
 
 COMMIT;

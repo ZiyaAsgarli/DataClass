@@ -7,17 +7,26 @@ import {
   SignJWT,
   type JWTVerifyGetKey,
 } from 'jose'
-import { executePocOperation, type PocPgClient } from '../worker/poc/database.ts'
+import {
+  executePocOperation,
+  PocDatabaseUnavailableError,
+  type PocPgClient,
+} from '../worker/poc/database.ts'
 import { handlePocGateway, type PocWorkerEnv } from '../worker/poc/index.ts'
 import {
   POC_OPERATION_NAMES,
   POC_OPERATION_REGISTRY,
   parsePocOperationRequest,
 } from '../worker/poc/registry.ts'
-import { PocAuthenticationError, verifyNeonJwt } from '../worker/poc/verifyNeonJwt.ts'
+import {
+  normalizeJwksUrl,
+  PocAuthenticationError,
+  verifyNeonJwt,
+} from '../worker/poc/verifyNeonJwt.ts'
 
-const ISSUER = 'https://auth.poc.invalid/database/auth'
+const ISSUER = 'https://auth.poc.invalid'
 const AUDIENCE = ISSUER
+const JWKS_URL = 'https://auth.poc.invalid/database/auth/.well-known/jwks.json'
 const APP_ORIGIN = 'https://app.poc.invalid'
 const USER_A = '10000000-0000-4000-8000-000000000001'
 const USER_B = '20000000-0000-4000-8000-000000000002'
@@ -34,7 +43,8 @@ const env: PocWorkerEnv = {
   POC_APP_ORIGIN: APP_ORIGIN,
   POC_NEON_JWT_ISSUER: ISSUER,
   POC_NEON_JWT_AUDIENCE: AUDIENCE,
-    HYPERDRIVE: { connectionString: 'isolated-test-connection' },
+  POC_NEON_JWKS_URL: JWKS_URL,
+  HYPERDRIVE: { connectionString: 'isolated-test-connection' },
 }
 
 interface TokenOptions {
@@ -72,7 +82,7 @@ function request(bearer: string, body: unknown) {
 }
 
 function verifier(keySet: JWTVerifyGetKey = localKeySet) {
-  return (bearer: string, config: { issuer: string; audience: string }) => (
+  return (bearer: string, config: { issuer: string; audience: string; jwksUrl: string }) => (
     verifyNeonJwt(bearer, config, { keySet })
   )
 }
@@ -89,6 +99,11 @@ class ReusedPocClient implements PocPgClient {
     if (text === 'BEGIN') {
       assert.equal(this.transactionOpen, false)
       this.transactionOpen = true
+      return { rows: [] as Row[] }
+    }
+    if (text === "SET LOCAL statement_timeout = '10s'"
+      || text === "SET LOCAL idle_in_transaction_session_timeout = '15s'") {
+      assert.equal(this.transactionOpen, true)
       return { rows: [] as Row[] }
     }
     if (text.startsWith("SELECT set_config('app.verified_actor_id'")) {
@@ -184,7 +199,7 @@ test('expired, not-yet-valid, wrong-issuer, wrong-audience, missing-sub, and mal
   ]
   for (const candidate of candidates) {
     await assert.rejects(
-      verifyNeonJwt(candidate, { issuer: ISSUER, audience: AUDIENCE }, { keySet: localKeySet }),
+      verifyNeonJwt(candidate, { issuer: ISSUER, audience: AUDIENCE, jwksUrl: JWKS_URL }, { keySet: localKeySet }),
       PocAuthenticationError,
     )
   }
@@ -196,9 +211,23 @@ test('alg none is rejected without consulting a token-provided key URL', async (
     iss: ISSUER, aud: AUDIENCE, sub: USER_A, exp: Math.floor(Date.now() / 1000) + 300,
   })}.`
   await assert.rejects(
-    verifyNeonJwt(unsigned, { issuer: ISSUER, audience: AUDIENCE }, { keySet: localKeySet }),
+    verifyNeonJwt(unsigned, { issuer: ISSUER, audience: AUDIENCE, jwksUrl: JWKS_URL }, { keySet: localKeySet }),
     PocAuthenticationError,
   )
+})
+
+test('JWKS location is fixed HTTPS server configuration', () => {
+  assert.equal(normalizeJwksUrl(JWKS_URL).toString(), JWKS_URL)
+  const credentialedUrl = new URL(JWKS_URL)
+  credentialedUrl.username = 'user'
+  credentialedUrl.password = 'password'
+  for (const candidate of [
+    'http://auth.poc.invalid/database/auth/.well-known/jwks.json',
+    credentialedUrl.toString(),
+    'https://auth.poc.invalid/database/auth/.well-known/jwks.json?from=token',
+  ]) {
+    assert.throws(() => normalizeJwksUrl(candidate), PocAuthenticationError)
+  }
 })
 
 test('browser-supplied user identity is rejected and never reaches the database', async () => {
@@ -228,11 +257,183 @@ test('unknown and injection-like operations cannot become SQL identifiers', asyn
 test('transaction rollback clears actor state before the next user', async () => {
   const client = new ReusedPocClient()
   client.failNextOperation = true
-  await assert.rejects(executeWith(client, USER_A), /synthetic operation failure/)
+  await assert.rejects(executeWith(client, USER_A), PocDatabaseUnavailableError)
   assert.equal(client.actor, null)
   assert.equal(client.transactionOpen, false)
   await executeWith(client, USER_B)
   assert.deepEqual(client.operationActors, [USER_B])
+})
+
+const DATABASE_UNAVAILABLE_BODY = {
+  error: {
+    code: 'GATEWAY_DATABASE_UNAVAILABLE',
+    message: 'The service is temporarily unavailable.',
+  },
+}
+
+async function gatewayWithClient(client: PocPgClient, subject = USER_A) {
+  return await handlePocGateway(
+    request(await token({ subject }), { operation: 'list_my_student_classes', params: {} }),
+    env,
+    {
+      verify: verifier(),
+      execute: async (_env, actorId) => executePocOperation({
+        connectionString: env.HYPERDRIVE.connectionString,
+        actorId,
+        operation: 'list_my_student_classes',
+        clientFactory: () => client,
+      }),
+    },
+  )
+}
+
+async function assertDatabaseUnavailable(response: Response) {
+  assert.equal(response.status, 503)
+  assert.match(response.headers.get('Content-Type') ?? '', /^application\/json/)
+  assert.deepEqual(await response.json(), DATABASE_UNAVAILABLE_BODY)
+}
+
+type FailureStage = 'connect' | 'BEGIN' | 'actor' | 'operation' | 'COMMIT' | 'ROLLBACK' | 'end'
+
+class FailurePocClient extends ReusedPocClient {
+  readonly failStages: Set<FailureStage>
+  rollbackCalls = 0
+  operationCalls = 0
+  endCalls = 0
+  private errorListener: (() => void) | undefined
+
+  constructor(...failStages: FailureStage[]) {
+    super()
+    this.failStages = new Set(failStages)
+  }
+
+  onError(listener: () => void) {
+    this.errorListener = listener
+  }
+
+  emitConnectionError() {
+    this.errorListener?.()
+  }
+
+  override async connect() {
+    if (this.failStages.has('connect')) throw new Error('synthetic connect detail')
+  }
+
+  override async query<Row extends Record<string, unknown>>(text: string, values?: readonly unknown[]) {
+    let stage: FailureStage | undefined
+    if (text === 'BEGIN') stage = 'BEGIN'
+    else if (text.startsWith("SELECT set_config('app.verified_actor_id'")) stage = 'actor'
+    else if (text === 'SELECT * FROM app_poc.list_my_student_classes()') {
+      stage = 'operation'
+      this.operationCalls += 1
+    } else if (text === 'COMMIT') stage = 'COMMIT'
+    else if (text === 'ROLLBACK') {
+      stage = 'ROLLBACK'
+      this.rollbackCalls += 1
+    }
+    if (stage && this.failStages.has(stage)) throw new Error(`synthetic ${stage} detail`)
+    return await super.query<Row>(text, values)
+  }
+
+  override async end() {
+    this.endCalls += 1
+    if (this.failStages.has('end')) throw new Error('synthetic cleanup detail')
+  }
+}
+
+test('connect failure is sanitized without rollback or a second socket close', async () => {
+  let endCalls = 0
+  const failingClient: PocPgClient = {
+    connect: async () => { throw new Error('synthetic connection failure') },
+    query: async () => ({ rows: [] }),
+    end: async () => { endCalls += 1 },
+  }
+  const response = await gatewayWithClient(failingClient)
+  await assertDatabaseUnavailable(response)
+  assert.equal(endCalls, 0)
+})
+
+test('BEGIN failure is sanitized without attempting rollback', async () => {
+  const client = new FailurePocClient('BEGIN')
+  await assertDatabaseUnavailable(await gatewayWithClient(client))
+  assert.equal(client.rollbackCalls, 0)
+  assert.equal(client.endCalls, 1)
+})
+
+test('actor and operation query failures roll back and are sanitized', async () => {
+  for (const stage of ['actor', 'operation'] as const) {
+    const client = new FailurePocClient(stage)
+    await assertDatabaseUnavailable(await gatewayWithClient(client))
+    assert.equal(client.rollbackCalls, 1)
+    assert.equal(client.endCalls, 1)
+  }
+})
+
+test('COMMIT failure is not replayed and is sanitized', async () => {
+  const client = new FailurePocClient('COMMIT')
+  await assertDatabaseUnavailable(await gatewayWithClient(client))
+  assert.equal(client.operationCalls, 1)
+  assert.equal(client.rollbackCalls, 1)
+})
+
+test('rollback failure cannot mask the original operation failure', async () => {
+  const client = new FailurePocClient('operation', 'ROLLBACK')
+  await assertDatabaseUnavailable(await gatewayWithClient(client))
+  assert.equal(client.rollbackCalls, 1)
+  assert.equal(client.endCalls, 1)
+})
+
+test('client disposal failure is contained by the gateway', async () => {
+  const client = new FailurePocClient('end')
+  await assertDatabaseUnavailable(await gatewayWithClient(client))
+  assert.equal(client.endCalls, 1)
+})
+
+test('asynchronous pg error event marks the client unusable without escaping', async () => {
+  const client = new FailurePocClient()
+  const originalConnect = client.connect.bind(client)
+  client.connect = async () => {
+    await originalConnect()
+    client.emitConnectionError()
+  }
+  await assertDatabaseUnavailable(await gatewayWithClient(client))
+  assert.equal(client.rollbackCalls, 0)
+  assert.equal(client.endCalls, 0)
+})
+
+test('simultaneous connection failures all receive bounded JSON errors', async () => {
+  const responses = await Promise.all(Array.from({ length: 12 }, async () => (
+    await gatewayWithClient(new FailurePocClient('connect'))
+  )))
+  for (const response of responses) await assertDatabaseUnavailable(response)
+})
+
+test('stalled connects time out without touching the in-flight socket', async () => {
+  let endCalls = 0
+  const stalledClient: PocPgClient = {
+    connect: async () => await new Promise<void>(() => {}),
+    query: async () => ({ rows: [] }),
+    end: async () => { endCalls += 1 },
+  }
+  await assert.rejects(executePocOperation({
+    connectionString: env.HYPERDRIVE.connectionString,
+    actorId: USER_A,
+    operation: 'list_my_student_classes',
+    clientFactory: () => stalledClient,
+    requestTimeoutMillis: 10,
+  }), PocDatabaseUnavailableError)
+  assert.equal(endCalls, 0)
+})
+
+test('failures followed by alternating users preserve transaction-local identity', async () => {
+  await assertDatabaseUnavailable(await gatewayWithClient(new FailurePocClient('operation'), USER_A))
+  const reused = new ReusedPocClient()
+  for (const actor of [USER_A, USER_B, USER_A, USER_B]) {
+    const response = await gatewayWithClient(reused, actor)
+    assert.equal(response.status, 200)
+    assert.equal(reused.actor, null)
+  }
+  assert.deepEqual(reused.operationActors, [USER_A, USER_B, USER_A, USER_B])
 })
 
 test('disabled PoC gateway is absent and does not verify or query', async () => {

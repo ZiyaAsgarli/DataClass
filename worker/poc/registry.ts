@@ -16,8 +16,19 @@ export class PocRequestError extends Error {
 export const POC_OPERATION_REGISTRY = Object.freeze({
   list_my_student_classes: Object.freeze({
     sql: 'SELECT * FROM app_poc.list_my_student_classes()',
+    normalizeRows: (rows: Record<string, unknown>[]) => rows.map((row) => {
+      if (!Object.hasOwn(row, 'student_count')) return row
+      const studentCount = Number(row.student_count)
+      if (!Number.isSafeInteger(studentCount) || studentCount < 0) {
+        throw new Error('The PoC result contains an invalid count.')
+      }
+      return { ...row, student_count: studentCount }
+    }),
   }),
-}) satisfies Readonly<Record<PocOperationName, { readonly sql: string }>>
+}) satisfies Readonly<Record<PocOperationName, {
+  readonly sql: string
+  readonly normalizeRows: (rows: Record<string, unknown>[]) => Record<string, unknown>[]
+}>>
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)

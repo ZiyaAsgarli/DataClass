@@ -5,11 +5,10 @@ import {
 } from 'jose'
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-const JWKS_PATH = '/.well-known/jwks.json'
-
 export interface NeonJwtVerificationConfig {
   issuer: string
   audience: string
+  jwksUrl: string
 }
 
 interface VerificationOptions {
@@ -42,9 +41,17 @@ function normalizeIssuer(value: string) {
   return issuer.toString().replace(/\/$/, '')
 }
 
-export function neonJwksUrl(issuerValue: string) {
-  const issuer = normalizeIssuer(issuerValue)
-  return new URL(`${issuer}${JWKS_PATH}`)
+export function normalizeJwksUrl(value: string) {
+  let jwksUrl: URL
+  try {
+    jwksUrl = new URL(value)
+  } catch {
+    throw new PocAuthenticationError()
+  }
+  if (jwksUrl.protocol !== 'https:' || jwksUrl.username || jwksUrl.password || jwksUrl.search || jwksUrl.hash) {
+    throw new PocAuthenticationError()
+  }
+  return jwksUrl
 }
 
 function remoteKeySet(jwksUrl: URL) {
@@ -72,7 +79,7 @@ export async function verifyNeonJwt(
   }
 
   const issuer = normalizeIssuer(config.issuer)
-  const keySet = options.keySet ?? remoteKeySet(neonJwksUrl(issuer))
+  const keySet = options.keySet ?? remoteKeySet(normalizeJwksUrl(config.jwksUrl))
 
   try {
     const { payload } = await jwtVerify(token, keySet, {
