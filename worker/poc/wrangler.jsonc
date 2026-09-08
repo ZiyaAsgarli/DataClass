@@ -1,0 +1,13 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "dataclass-auth-gateway-poc",
+  "main": "index.ts",
+  "compatibility_date": "2026-09-08",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "POC_AUTH_GATEWAY_ENABLED": "false",
+    "POC_APP_ORIGIN": "https://replace-with-isolated-origin.invalid",
+    "POC_NEON_JWT_ISSUER": "https://replace-with-isolated-auth-origin.invalid/database/auth",
+    "POC_NEON_JWT_AUDIENCE": "https://replace-with-isolated-auth-origin.invalid/database/auth"
+  }
+}
