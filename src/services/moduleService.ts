@@ -1,4 +1,5 @@
 import { neonClient } from '@/lib/neon'
+import { callGatewayRpc } from '@/lib/rpc'
 import type {
   CourseLessonRecord,
   CourseModuleRecord,
@@ -15,6 +16,11 @@ async function rpc<T extends RpcRow>(name: string, args?: Record<string, unknown
   const result = await neonClient.rpc(name, args)
   if (result.error) throw result.error
   return (Array.isArray(result.data) ? result.data : []) as T[]
+}
+
+async function gatewayRpc<T extends RpcRow>(name: string, args?: Record<string, unknown>) {
+  const data = await callGatewayRpc<unknown>(name, args)
+  return (Array.isArray(data) ? data : []) as T[]
 }
 
 const text = (value: unknown) => typeof value === 'string' ? value : ''
@@ -57,11 +63,11 @@ function mapLessonVideo(row: RpcRow, includeUrl = false): LessonVideoRecord {
 }
 
 export async function listTeacherClassModules(classId: string) {
-  return (await rpc('list_teacher_class_modules', { target_class_id: classId })).map(mapModule)
+  return (await gatewayRpc('list_teacher_class_modules', { target_class_id: classId })).map(mapModule)
 }
 
 export async function getTeacherModule(moduleId: string) {
-  const row = (await rpc('get_teacher_module', { target_module_id: moduleId }))[0]
+  const row = (await gatewayRpc('get_teacher_module', { target_module_id: moduleId }))[0]
   if (!row) throw new Error('Module not found.')
   return mapModule(row)
 }
@@ -93,7 +99,7 @@ export async function reorderModule(moduleId: string, direction: 'up' | 'down') 
 }
 
 export async function listModuleInstructorOptions(moduleId: string): Promise<ModuleInstructorOption[]> {
-  return (await rpc('list_module_instructor_options', { target_module_id: moduleId })).map((row) => ({
+  return (await gatewayRpc('list_module_instructor_options', { target_module_id: moduleId })).map((row) => ({
     teacherId: text(row.teacher_id), fullName: text(row.full_name),
     classRole: text(row.class_role) as ModuleInstructorOption['classRole'], assigned: row.assigned === true,
   }))
@@ -110,11 +116,11 @@ export async function removeModuleInstructor(moduleId: string, teacherId: string
 }
 
 export async function listTeacherModuleLessons(moduleId: string) {
-  return (await rpc('list_teacher_module_lessons', { target_module_id: moduleId })).map(mapLesson)
+  return (await gatewayRpc('list_teacher_module_lessons', { target_module_id: moduleId })).map(mapLesson)
 }
 
 export async function getTeacherLesson(lessonId: string) {
-  const row = (await rpc('get_teacher_lesson', { target_lesson_id: lessonId }))[0]
+  const row = (await gatewayRpc('get_teacher_lesson', { target_lesson_id: lessonId }))[0]
   if (!row) throw new Error('Lesson not found.')
   return mapLesson(row)
 }
@@ -140,33 +146,33 @@ export async function reorderLesson(lessonId: string, direction: 'up' | 'down') 
 }
 
 export async function listStudentClassModules(classId: string) {
-  return (await rpc('list_student_class_modules', { target_class_id: classId })).map(mapModule)
+  return (await gatewayRpc('list_student_class_modules', { target_class_id: classId })).map(mapModule)
 }
 
 export async function getStudentModule(moduleId: string) {
-  const row = (await rpc('get_student_module', { target_module_id: moduleId }))[0]
+  const row = (await gatewayRpc('get_student_module', { target_module_id: moduleId }))[0]
   if (!row) throw new Error('Module not found.')
   return mapModule(row)
 }
 
 export async function listStudentModuleLessons(moduleId: string) {
-  return (await rpc('list_student_module_lessons', { target_module_id: moduleId })).map(mapLesson)
+  return (await gatewayRpc('list_student_module_lessons', { target_module_id: moduleId })).map(mapLesson)
 }
 
 export async function getStudentLesson(lessonId: string) {
-  const row = (await rpc('get_student_lesson', { target_lesson_id: lessonId }))[0]
+  const row = (await gatewayRpc('get_student_lesson', { target_lesson_id: lessonId }))[0]
   if (!row) throw new Error('Lesson not found.')
   return mapLesson(row)
 }
 
 export async function getTeacherLessonVideo(lessonId: string) {
-  const row = (await rpc('get_teacher_lesson_video', { target_lesson_id: lessonId }))[0]
+  const row = (await gatewayRpc('get_teacher_lesson_video', { target_lesson_id: lessonId }))[0]
   if (!row) throw new Error('Lesson recording state was not returned.')
   return mapLessonVideo(row, true)
 }
 
 export async function getStudentLessonVideo(lessonId: string) {
-  const row = (await rpc('get_student_lesson_video', { target_lesson_id: lessonId }))[0]
+  const row = (await gatewayRpc('get_student_lesson_video', { target_lesson_id: lessonId }))[0]
   if (!row) throw new Error('Lesson recording state was not returned.')
   return mapLessonVideo(row)
 }
