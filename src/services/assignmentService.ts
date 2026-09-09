@@ -1,4 +1,5 @@
 import { neonClient } from '@/lib/neon'
+import { callGatewayRpc } from '@/lib/rpc'
 import type {
   AssignmentLessonOption,
   AssignmentRecord,
@@ -19,6 +20,10 @@ async function rpc<T = RpcRow[]>(name: string, args?: Record<string, unknown>) {
   const result = await neonClient.rpc(name, args)
   if (result.error) throw result.error
   return result.data as T
+}
+
+async function gatewayRpc<T = RpcRow[]>(name: string, args?: Record<string, unknown>) {
+  return callGatewayRpc<T>(name, args)
 }
 
 function rows(value: unknown) { return Array.isArray(value) ? value as RpcRow[] : [] }
@@ -52,21 +57,21 @@ function mapAssignment(row: RpcRow): AssignmentRecord {
 }
 
 export async function listTeacherAssignments() {
-  return rows(await rpc('list_teacher_assignments')).map(mapAssignment)
+  return rows(await gatewayRpc('list_teacher_assignments')).map(mapAssignment)
 }
 
 export async function listStudentAssignments() {
-  return rows(await rpc('list_student_assignments')).map(mapAssignment)
+  return rows(await gatewayRpc('list_student_assignments')).map(mapAssignment)
 }
 
 export async function getTeacherAssignment(id: string) {
-  const row = rows(await rpc('get_teacher_assignment', { target_assignment_id: id }))[0]
+  const row = rows(await gatewayRpc('get_teacher_assignment', { target_assignment_id: id }))[0]
   if (!row) throw new Error('Assignment not found.')
   return mapAssignment(row)
 }
 
 export async function getStudentAssignment(id: string) {
-  const row = rows(await rpc('get_student_assignment', { target_assignment_id: id }))[0]
+  const row = rows(await gatewayRpc('get_student_assignment', { target_assignment_id: id }))[0]
   if (!row) throw new Error('Assignment not found.')
   return mapAssignment(row)
 }
@@ -107,13 +112,13 @@ export async function setAssignmentStatus(id: string, status: AssignmentStatus) 
 }
 
 export async function listAssignmentLessonOptions(classId: string): Promise<AssignmentLessonOption[]> {
-  return rows(await rpc('list_assignment_lesson_options', { target_class_id: classId })).map((row) => ({
+  return rows(await gatewayRpc('list_assignment_lesson_options', { target_class_id: classId })).map((row) => ({
     id: text(row.lesson_id), title: text(row.lesson_title), moduleTitle: text(row.module_title),
   }))
 }
 
 export async function listAssignmentRoster(id: string): Promise<AssignmentRosterEntry[]> {
-  return rows(await rpc('list_assignment_roster', { target_assignment_id: id })).map((row) => ({
+  return rows(await gatewayRpc('list_assignment_roster', { target_assignment_id: id })).map((row) => ({
     studentId: text(row.student_id), fullName: text(row.full_name), email: text(row.email),
     submissionId: nullableText(row.submission_id),
     status: nullableText(row.submission_status) as SubmissionStatus | null,
@@ -129,7 +134,7 @@ export async function submitMyAssignment(id: string) {
 }
 
 export async function getSubmissionDetail(id: string): Promise<SubmissionDetail> {
-  const row = rows(await rpc('get_submission_detail', { target_submission_id: id }))[0]
+  const row = rows(await gatewayRpc('get_submission_detail', { target_submission_id: id }))[0]
   if (!row) throw new Error('Submission not found.')
   return {
     id: text(row.submission_id), assignmentId: text(row.assignment_id),
@@ -144,7 +149,7 @@ export async function getSubmissionDetail(id: string): Promise<SubmissionDetail>
 }
 
 export async function listSubmissionFiles(id: string): Promise<SubmissionFileRecord[]> {
-  return rows(await rpc('list_submission_files', { target_submission_id: id })).map((row) => ({
+  return rows(await gatewayRpc('list_submission_files', { target_submission_id: id })).map((row) => ({
     id: text(row.id), title: text(row.file_name), fileName: text(row.file_name),
     resourceKind: text(row.resource_kind), fileSizeBytes: count(row.file_size_bytes),
     mimeType: text(row.mime_type), position: 0, uploadedAt: text(row.uploaded_at),
