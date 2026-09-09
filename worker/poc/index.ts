@@ -54,9 +54,9 @@ function databaseUnavailableResponse(request: Request, env: PocWorkerEnv) {
 
 function bearerToken(request: Request) {
   const authorization = request.headers.get('Authorization')
-  if (!authorization?.startsWith('Bearer ')) throw new PocAuthenticationError()
+  if (!authorization?.startsWith('Bearer ')) throw new PocAuthenticationError('AUTH_REQUIRED')
   const token = authorization.slice(7).trim()
-  if (!token || token.length > 8_192) throw new PocAuthenticationError()
+  if (!token || token.length > 8_192) throw new PocAuthenticationError('AUTH_REQUIRED')
   return token
 }
 

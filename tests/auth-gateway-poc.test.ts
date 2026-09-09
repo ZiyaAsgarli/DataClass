@@ -101,8 +101,8 @@ class ReusedPocClient implements PocPgClient {
       this.transactionOpen = true
       return { rows: [] as Row[] }
     }
-    if (text === "SET LOCAL statement_timeout = '10s'"
-      || text === "SET LOCAL idle_in_transaction_session_timeout = '15s'") {
+    if (text.startsWith('SET LOCAL statement_timeout = ')
+      || text.startsWith('SET LOCAL idle_in_transaction_session_timeout = ')) {
       assert.equal(this.transactionOpen, true)
       return { rows: [] as Row[] }
     }

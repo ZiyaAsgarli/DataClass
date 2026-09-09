@@ -3,6 +3,8 @@ import crypto from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { Client } from 'pg'
+import { executeGatewayDatabase } from '../worker/gateway/database.ts'
+import { GATEWAY_OPERATION_REGISTRY, validateGatewayParameters } from '../worker/gateway/registry.ts'
 
 const manifest = JSON.parse(
   readFileSync(new URL('./fixtures/auth-gateway-db-manifest.json', import.meta.url), 'utf8'),
@@ -63,6 +65,17 @@ async function expectSqlState(connectionString, actorId, sql, values, state) {
     return
   }
   assert.fail(`Expected SQLSTATE ${state} for ${operation}`)
+}
+
+async function throughGateway(connectionOptions, actorId, operation, params = {}) {
+  const definition = GATEWAY_OPERATION_REGISTRY[operation]
+  assert.ok(definition, operation)
+  return await executeGatewayDatabase({
+    connectionString: 'isolated-live-connection',
+    actorId,
+    invocation: validateGatewayParameters(definition, params),
+    clientFactory: () => new Client(connectionOptions),
+  })
 }
 
 async function rollbackProbe(connectionString, statements) {
@@ -189,6 +202,29 @@ async function main() {
   assert.equal((await withActor(gateway,userA.id,'SELECT * FROM app_gateway.authorize_lesson_resource_download($1)',[resourceA])).rows.length,1)
   await expectSqlState(gateway,userB.id,'SELECT * FROM app_gateway.authorize_lesson_resource_download($1)',[resourceA],'42501')
   assert.equal((await withActor(gateway,userB.id,'SELECT * FROM app_gateway.authorize_lesson_resource_download($1)',[resourceB])).rows.length,1)
+
+  const gatewayDomains = {
+    profile: await throughGateway(gateway,userA.id,'bootstrap_current_user'),
+    class: await throughGateway(gateway,userA.id,'get_class_overview',{target_class_id:classA}),
+    membership: await throughGateway(gateway,userA.id,'get_class_invitations',{target_class_id:classA}),
+    module: await throughGateway(gateway,userA.id,'get_teacher_module',{target_module_id:moduleA}),
+    lesson: await throughGateway(gateway,userA.id,'get_teacher_lesson',{target_lesson_id:lessonA}),
+    assignment: await throughGateway(gateway,userA.id,'get_teacher_assignment',{target_assignment_id:assignmentA}),
+    submission: await throughGateway(gateway,userA.id,'get_submission_detail',{target_submission_id:submissionA}),
+    storage: await throughGateway(gateway,userA.id,'authorize_lesson_resource_download',{target_resource_id:resourceA}),
+  }
+  assert.ok(Object.values(gatewayDomains).every((value) => Array.isArray(value) && value.length === 1))
+  assert.equal(gatewayDomains.class[0].student_count,1)
+  assert.match(gatewayDomains.class[0].created_at,/^\d{4}-\d{2}-\d{2}T/)
+  assert.equal(gatewayDomains.storage[0].file_size_bytes,64)
+  const m2Before=(await admin.query('SELECT name FROM public.classes WHERE id=$1',[classA])).rows[0].name
+  await throughGateway(gateway,userA.id,'update_owned_class',{target_class_id:classA,class_name:'Gateway M2 class',class_description:null,class_status:'active'})
+  assert.equal((await admin.query('SELECT name FROM public.classes WHERE id=$1',[classA])).rows[0].name,'Gateway M2 class')
+  await throughGateway(gateway,userA.id,'update_owned_class',{target_class_id:classA,class_name:m2Before,class_description:'Isolated fixture',class_status:'active'})
+  const lessonPositionBefore=(await admin.query('SELECT position FROM public.lessons WHERE id=$1',[lessonA])).rows[0].position
+  const m3Result=await throughGateway(gateway,userA.id,'reorder_lesson',{target_lesson_id:lessonA,move_direction:'up'})
+  assert.equal(m3Result.length,1)
+  assert.equal((await admin.query('SELECT position FROM public.lessons WHERE id=$1',[lessonA])).rows[0].position,lessonPositionBefore)
 
   await withActor(gateway,userA.id,'SELECT app_gateway.update_owned_class($1,$2,$3,$4)',[classA,'Synthetic A class updated','Isolated fixture','active'])
   assert.equal((await admin.query('SELECT name FROM public.classes WHERE id=$1',[classA])).rows[0].name,'Synthetic A class updated')
