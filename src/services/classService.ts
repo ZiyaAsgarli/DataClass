@@ -1,4 +1,5 @@
 import { neonClient } from '@/lib/neon'
+import { callGatewayRpc } from '@/lib/rpc'
 import type {
   ClassInstructor,
   ClassInvitation,
@@ -43,7 +44,7 @@ export async function listTeacherClasses() {
 }
 
 export async function listStudentClasses() {
-  return (await rpc('list_my_student_classes')).map(mapClass)
+  return (await callGatewayRpc<RpcRow[]>('list_my_student_classes')).map(mapClass)
 }
 
 export async function createClass(name: string, description: string) {
