@@ -114,10 +114,11 @@ test('transport does not fall back to another implementation', async () => {
   assert.equal(calls, 1)
 })
 
-test('exactly one frontend service RPC is migrated to the shared transport', () => {
+test('classService delegates gateway reads through the shared transport', () => {
   const source = readFileSync(new URL('../src/services/classService.ts', import.meta.url), 'utf8')
   assert.equal(source.match(/callGatewayRpc</g)?.length, 1)
-  assert.match(source, /listStudentClasses[\s\S]*callGatewayRpc<RpcRow\[]>\('list_my_student_classes'\)/)
+  assert.match(source, /gatewayRpc<T extends RpcRow>[\s\S]*callGatewayRpc<unknown>/)
+  assert.match(source, /listStudentClasses[\s\S]*gatewayRpc\('list_my_student_classes'\)/)
 })
 
 test('storage service remains on its existing transport', () => {

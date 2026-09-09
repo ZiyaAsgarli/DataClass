@@ -20,6 +20,10 @@ async function rpc<T extends RpcRow>(name: string, args?: Record<string, unknown
   return rows<T>(result.data)
 }
 
+async function gatewayRpc<T extends RpcRow>(name: string, args?: Record<string, unknown>) {
+  return rows<T>(await callGatewayRpc<unknown>(name, args))
+}
+
 const text = (value: unknown) => typeof value === 'string' ? value : ''
 const nullableText = (value: unknown) => typeof value === 'string' ? value : null
 const count = (value: unknown) => Number(value ?? 0)
@@ -40,11 +44,11 @@ function mapClass(row: RpcRow): ManagedClass {
 }
 
 export async function listTeacherClasses() {
-  return (await rpc('list_my_teacher_classes')).map(mapClass)
+  return (await gatewayRpc('list_my_teacher_classes')).map(mapClass)
 }
 
 export async function listStudentClasses() {
-  return (await callGatewayRpc<RpcRow[]>('list_my_student_classes')).map(mapClass)
+  return (await gatewayRpc('list_my_student_classes')).map(mapClass)
 }
 
 export async function createClass(name: string, description: string) {
@@ -66,7 +70,7 @@ export async function updateClass(classId: string, name: string, description: st
 }
 
 export async function getClassOverview(classId: string): Promise<ClassOverview> {
-  const result = await rpc('get_class_overview', { target_class_id: classId })
+  const result = await gatewayRpc('get_class_overview', { target_class_id: classId })
   const row = result[0]
   if (!row) throw new Error('Class not found.')
   return {
@@ -80,7 +84,7 @@ export async function getClassOverview(classId: string): Promise<ClassOverview> 
 }
 
 export async function getMyStudentClassOverview(classId: string): Promise<ClassOverview> {
-  const result = await rpc('get_my_student_class_overview', { target_class_id: classId })
+  const result = await gatewayRpc('get_my_student_class_overview', { target_class_id: classId })
   const row = result[0]
   if (!row) throw new Error('Class not found.')
   return {
@@ -90,7 +94,7 @@ export async function getMyStudentClassOverview(classId: string): Promise<ClassO
 }
 
 export async function getClassStudents(classId: string): Promise<ClassStudent[]> {
-  return (await rpc('get_class_students', { target_class_id: classId })).map((row) => ({
+  return (await gatewayRpc('get_class_students', { target_class_id: classId })).map((row) => ({
     membershipId: text(row.membership_id), studentId: text(row.student_id),
     fullName: text(row.full_name), email: text(row.email), status: text(row.membership_status),
     joinedAt: text(row.joined_at),
@@ -98,14 +102,14 @@ export async function getClassStudents(classId: string): Promise<ClassStudent[]>
 }
 
 export async function getClassInvitations(classId: string): Promise<ClassInvitation[]> {
-  return (await rpc('get_class_invitations', { target_class_id: classId })).map((row) => ({
+  return (await gatewayRpc('get_class_invitations', { target_class_id: classId })).map((row) => ({
     id: text(row.id), email: text(row.email), status: text(row.status), createdAt: text(row.created_at),
     acceptedAt: nullableText(row.accepted_at), expiresAt: nullableText(row.expires_at),
   }))
 }
 
 export async function getClassInstructors(classId: string): Promise<ClassInstructor[]> {
-  return (await rpc('get_class_instructors', { target_class_id: classId })).map((row) => ({
+  return (await gatewayRpc('get_class_instructors', { target_class_id: classId })).map((row) => ({
     relationshipId: text(row.relationship_id), teacherId: text(row.teacher_id),
     fullName: text(row.full_name), email: text(row.email), avatarUrl: nullableText(row.avatar_url),
     role: text(row.teacher_role) as ClassInstructor['role'], createdAt: text(row.created_at),
@@ -113,7 +117,7 @@ export async function getClassInstructors(classId: string): Promise<ClassInstruc
 }
 
 export async function getMyStudentClassInstructors(classId: string): Promise<ClassInstructor[]> {
-  return (await rpc('get_my_student_class_instructors', { target_class_id: classId })).map((row) => ({
+  return (await gatewayRpc('get_my_student_class_instructors', { target_class_id: classId })).map((row) => ({
     relationshipId: text(row.relationship_id), teacherId: text(row.teacher_id),
     fullName: text(row.full_name), email: '', avatarUrl: nullableText(row.avatar_url),
     role: text(row.teacher_role) as ClassInstructor['role'], createdAt: text(row.created_at),
