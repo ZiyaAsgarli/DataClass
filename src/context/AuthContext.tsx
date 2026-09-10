@@ -19,12 +19,11 @@ import {
   type AuthInitializationPrivilegeCategory,
 } from "@/context/auth-context";
 import {
-  isBootstrapIdentityUnavailableError,
-  resolveBootstrapWithIdentityRetry,
   runNonBlockingStep,
   runSingleFlight,
 } from "@/context/auth-bootstrap-retry";
 import { neonClient } from "@/lib/neon";
+import { callGatewayRpc } from "@/lib/rpc";
 import type { AuthProfile, UserRole } from "@/types";
 
 interface BootstrapRow {
@@ -146,26 +145,6 @@ function reportInitializationIssue(issue: AuthInitializationIssue) {
   console.warn(`[auth-init] ${JSON.stringify(issue)}`);
 }
 
-function createBootstrapRetryIssue(
-  diagnosticContext: InitializationDiagnosticContext,
-  retrySucceeded: boolean,
-): AuthInitializationIssue {
-  return {
-    attemptId: diagnosticContext.attemptId,
-    phase: "profile-bootstrap",
-    code: "AUTH_INIT_PROFILE_BOOTSTRAP_IDENTITY_RETRY",
-    category: "authorization",
-    httpStatus: 403,
-    databaseCode: "42501",
-    privilegeCategory: "AUTH_IDENTITY_UNAVAILABLE",
-    tokenPresent: diagnosticContext.tokenPresent,
-    bootstrapAttempt: 2,
-    sessionPresent: true,
-    retrySucceeded,
-    occurredAt: new Date().toISOString(),
-  };
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<BetterAuthSession | null>(null);
   const [user, setUser] = useState<BetterAuthUser | null>(null);
@@ -243,67 +222,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(null);
       setRoles([]);
 
-      const bootstrap = async () => {
-        const bootstrapResult = await neonClient.rpc("bootstrap_current_user");
-        if (bootstrapResult.error) throw bootstrapResult.error;
-        const row = (bootstrapResult.data as BootstrapRow[] | null)?.[0];
+      let row: BootstrapRow;
+      try {
+        const bootstrapResult = await callGatewayRpc<BootstrapRow[]>(
+          "bootstrap_current_user",
+        );
+        row = bootstrapResult[0];
         if (!row) throw new Error("Profile bootstrap returned no profile.");
-        return row;
-      };
-
-      const bootstrapOutcome = await resolveBootstrapWithIdentityRetry({
-        bootstrap,
-        revalidateSession: async () => {
-          const refreshed = await neonClient.auth.getSession();
-          if (refreshed.error) throw refreshed.error;
-          return {
-            session: refreshed.data?.session ?? null,
-            user: refreshed.data?.user ?? null,
-            tokenPresent: Boolean(refreshed.data?.session?.token),
-          };
-        },
-      });
-
-      if (!bootstrapOutcome.ok) {
-        if (bootstrapOutcome.retryAttempted) {
-          reportInitializationIssue(
-            createBootstrapRetryIssue(diagnosticContext, false),
-          );
-        }
+      } catch (caughtError) {
         const issue = createInitializationIssue(
           "profile-bootstrap",
-          bootstrapOutcome.error,
+          caughtError,
           diagnosticContext,
         );
-        const identityRetryPath =
-          bootstrapOutcome.retryAttempted ||
-          isBootstrapIdentityUnavailableError(bootstrapOutcome.error);
-        issue.bootstrapAttempt = bootstrapOutcome.attempts;
-        issue.sessionPresent = identityRetryPath
-          ? bootstrapOutcome.sessionPresent
-          : true;
-        issue.tokenPresent = identityRetryPath
-          ? bootstrapOutcome.tokenPresent
-          : diagnosticContext.tokenPresent;
-        issue.retrySucceeded = bootstrapOutcome.retrySucceeded;
+        issue.bootstrapAttempt = 1;
+        issue.sessionPresent = true;
         reportInitializationIssue(issue);
         setInitializationIssue(issue);
-        setError(safeMessage(bootstrapOutcome.error, "auth.workspaceFailed"));
+        setError(safeMessage(caughtError, "auth.workspaceFailed"));
         return;
-      }
-
-      const row = bootstrapOutcome.result;
-      if (bootstrapOutcome.retryAttempted) {
-        const retryIssue = createBootstrapRetryIssue(
-          diagnosticContext,
-          bootstrapOutcome.retrySucceeded,
-        );
-        reportInitializationIssue(retryIssue);
-        setInitializationIssue(retryIssue);
-        if (bootstrapOutcome.session && bootstrapOutcome.user) {
-          setSession(bootstrapOutcome.session);
-          setUser(bootstrapOutcome.user);
-        }
       }
 
       const resolvedRoles = Array.isArray(row.roles)
@@ -331,8 +268,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRoles(resolvedRoles);
 
       const claimError = await runNonBlockingStep(async () => {
-        const claimResult = await neonClient.rpc("claim_my_class_invitations");
-        if (claimResult.error) throw claimResult.error;
+        await callGatewayRpc<unknown>("claim_my_class_invitations");
       });
       if (claimError) {
         const issue = createInitializationIssue(

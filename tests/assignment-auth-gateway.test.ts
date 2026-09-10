@@ -33,16 +33,13 @@ interface AssignmentServiceModule {
 }
 
 const gatewayCalls: RpcCall[] = []
-const dataApiCalls: RpcCall[] = []
 const gatewayResponses = new Map<string, unknown>()
-const dataApiResponses = new Map<string, unknown>()
 let gatewayFailure: Error | null = null
 
 async function loadAssignmentService() {
   const source = await readFile(new URL('../src/services/assignmentService.ts', import.meta.url), 'utf8')
   const executable = source
-    .replace("import { neonClient } from '@/lib/neon'", `const { neonClient, callGatewayRpc } = globalThis.__assignmentServiceDeps`)
-    .replace("import { callGatewayRpc } from '@/lib/rpc'", '')
+    .replace("import { callGatewayRpc } from '@/lib/rpc'", `const { callGatewayRpc } = globalThis.__assignmentServiceDeps`)
     .replace(/import type \{[\s\S]*?\} from '@\/types'\r?\n/, '')
   Object.assign(globalThis, {
     __assignmentServiceDeps: {
@@ -50,12 +47,6 @@ async function loadAssignmentService() {
         gatewayCalls.push({ operation, params })
         if (gatewayFailure) throw gatewayFailure
         return gatewayResponses.get(operation)
-      },
-      neonClient: {
-        rpc: async (operation: string, params?: Record<string, unknown>) => {
-          dataApiCalls.push({ operation, params })
-          return { data: dataApiResponses.get(operation), error: null }
-        },
       },
     },
   })
@@ -73,9 +64,7 @@ const service = await loadAssignmentService()
 
 function reset() {
   gatewayCalls.length = 0
-  dataApiCalls.length = 0
   gatewayResponses.clear()
-  dataApiResponses.clear()
   gatewayFailure = null
 }
 
@@ -133,7 +122,6 @@ test('all eight assignmentService reads use exact gateway keys and parameters', 
     { operation: 'get_submission_detail', params: { target_submission_id: 'submission-a' } },
     { operation: 'list_submission_files', params: { target_submission_id: 'submission-a' } },
   ])
-  assert.equal(dataApiCalls.length, 0)
   assert.equal(gatewayCalls.some(({ params }) => Object.keys(params ?? {}).some((key) => /(?:user|actor)_id/.test(key))), false)
 })
 
@@ -145,16 +133,15 @@ test('gateway failures preserve missing-row behavior and never fall back', async
   gatewayFailure = expected
   await assert.rejects(service.getSubmissionDetail('submission-a'), (error) => error === expected)
   assert.equal(gatewayCalls.length, 2)
-  assert.equal(dataApiCalls.length, 0)
 })
 
-test('all five assignment and submission mutations remain on Data API', async () => {
+test('all five assignment and submission mutations use exact gateway keys, parameters, and contracts', async () => {
   reset()
-  dataApiResponses.set('create_assignment', 'created-assignment')
-  dataApiResponses.set('update_assignment', null)
-  dataApiResponses.set('set_assignment_status', null)
-  dataApiResponses.set('submit_my_assignment', [{ submission_id: 'submission-a', submission_status: 'submitted' }])
-  dataApiResponses.set('review_submission', null)
+  gatewayResponses.set('create_assignment', 'created-assignment')
+  gatewayResponses.set('update_assignment', null)
+  gatewayResponses.set('set_assignment_status', null)
+  gatewayResponses.set('submit_my_assignment', [{ submission_id: 'submission-a', submission_status: 'submitted' }])
+  gatewayResponses.set('review_submission', null)
 
   assert.equal(await service.createAssignment({
     classId: 'class-a', lessonId: 'lesson-a', title: 'Assignment', description: '', dueAt: null, allowLate: true,
@@ -166,23 +153,70 @@ test('all five assignment and submission mutations remain on Data API', async ()
   assert.deepEqual(await service.submitMyAssignment('assignment-a'), { id: 'submission-a', status: 'submitted' })
   await service.reviewSubmission('submission-a', 'reviewed', '')
 
-  assert.deepEqual(dataApiCalls.map(({ operation }) => operation), [
-    'create_assignment', 'update_assignment', 'set_assignment_status', 'submit_my_assignment', 'review_submission',
+  assert.deepEqual(gatewayCalls, [
+    { operation: 'create_assignment', params: {
+      target_class_id: 'class-a', target_lesson_id: 'lesson-a', assignment_title: 'Assignment',
+      assignment_description: null, assignment_due_at: null, assignment_allow_late: true,
+    } },
+    { operation: 'update_assignment', params: {
+      target_assignment_id: 'assignment-a', assignment_title: 'Assignment',
+      assignment_description: null, assignment_due_at: null, assignment_allow_late: true,
+    } },
+    { operation: 'set_assignment_status', params: { target_assignment_id: 'assignment-a', next_status: 'published' } },
+    { operation: 'submit_my_assignment', params: { target_assignment_id: 'assignment-a' } },
+    { operation: 'review_submission', params: {
+      target_submission_id: 'submission-a', review_action: 'reviewed', feedback_message: null,
+    } },
   ])
-  assert.equal(gatewayCalls.length, 0)
 })
 
-test('AuthContext keeps both canonical M2 operations on the existing path', async () => {
+test('both AuthContext M2 operations use the gateway once without legacy replay', async () => {
   const source = await readFile(new URL('../src/context/AuthContext.tsx', import.meta.url), 'utf8')
-  const operations = [...source.matchAll(/neonClient\.rpc\(\s*["']([a-z0-9_]+)["']/g)].map((match) => match[1])
+  const operations = [...source.matchAll(/callGatewayRpc(?:<[^>]+>)?\(\s*["']([a-z0-9_]+)["']/g)].map((match) => match[1])
   assert.deepEqual(operations, ['bootstrap_current_user', 'claim_my_class_invitations'])
   for (const operation of operations) {
     const definition = GATEWAY_OPERATION_ROWS.find(({ key }) => key === operation)
     assert.equal(definition?.access, 'MUTATION')
     assert.equal(definition?.mutationClass, 'M2')
   }
-  assert.doesNotMatch(source, /callGatewayRpc/)
-  assert.match(source, /resolveBootstrapWithIdentityRetry/)
+  assert.doesNotMatch(source, /neonClient\.rpc|resolveBootstrapWithIdentityRetry|isBootstrapIdentityUnavailableError|createBootstrapRetryIssue/)
+  assert.equal(source.match(/"bootstrap_current_user"/g)?.length, 1)
+  assert.match(source, /runSingleFlight\(initializationRef, performAuthResolution\)/)
+  assert.match(source, /neonClient\.auth\.getSession\(\)/)
+  assert.match(source, /neonClient\.auth\.signIn\.social/)
+  assert.match(source, /neonClient\.auth\.signOut/)
+})
+
+test('both M3 assignment mutations execute once for success and ambiguous failures', async () => {
+  const cases: Array<[string, () => Promise<unknown>, unknown]> = [
+    ['create_assignment', () => service.createAssignment({
+      classId: 'class-a', lessonId: null, title: 'Assignment', description: '', dueAt: null, allowLate: true,
+    }), 'created-assignment'],
+    ['review_submission', () => service.reviewSubmission('submission-a', 'reviewed', ''), null],
+  ]
+  for (const [operation, invoke, response] of cases) {
+    reset()
+    gatewayResponses.set(operation, response)
+    await invoke()
+    assert.equal(gatewayCalls.length, 1)
+    for (const failure of [
+      new Error('timeout'), new TypeError('network unavailable'),
+      Object.assign(new Error('database unavailable'), { code: 'DATABASE_UNAVAILABLE' }),
+      new Error('commit outcome unknown'),
+    ]) {
+      reset()
+      gatewayFailure = failure
+      await assert.rejects(invoke(), (error) => error === failure)
+      assert.equal(gatewayCalls.length, 1, `${operation} failure`)
+      assert.equal(gatewayCalls[0]?.operation, operation)
+    }
+  }
+})
+
+test('assignmentService has no Data API transport, retry loop, or fallback path', async () => {
+  const source = await readFile(new URL('../src/services/assignmentService.ts', import.meta.url), 'utf8')
+  assert.doesNotMatch(source, /neonClient|\.rpc\(|retry|fallback/i)
+  assert.equal(source.match(/callGatewayRpc<T>/g)?.length, 1)
 })
 
 test('storageService remains unchanged and outside the assignment gateway path', async () => {

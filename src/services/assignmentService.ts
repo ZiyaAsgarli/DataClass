@@ -1,4 +1,3 @@
-import { neonClient } from '@/lib/neon'
 import { callGatewayRpc } from '@/lib/rpc'
 import type {
   AssignmentLessonOption,
@@ -15,12 +14,6 @@ type RpcRow = Record<string, unknown>
 const text = (value: unknown) => typeof value === 'string' ? value : ''
 const nullableText = (value: unknown) => typeof value === 'string' ? value : null
 const count = (value: unknown) => Number(value ?? 0)
-
-async function rpc<T = RpcRow[]>(name: string, args?: Record<string, unknown>) {
-  const result = await neonClient.rpc(name, args)
-  if (result.error) throw result.error
-  return result.data as T
-}
 
 async function gatewayRpc<T = RpcRow[]>(name: string, args?: Record<string, unknown>) {
   return callGatewayRpc<T>(name, args)
@@ -84,7 +77,7 @@ export async function createAssignment(input: {
   dueAt: string | null
   allowLate: boolean
 }) {
-  const data = await rpc<unknown>('create_assignment', {
+  const data = await gatewayRpc<unknown>('create_assignment', {
     target_class_id: input.classId,
     target_lesson_id: input.lessonId,
     assignment_title: input.title,
@@ -98,7 +91,7 @@ export async function createAssignment(input: {
 }
 
 export async function updateAssignment(id: string, input: Omit<Parameters<typeof createAssignment>[0], 'classId' | 'lessonId'>) {
-  await rpc('update_assignment', {
+  await gatewayRpc('update_assignment', {
     target_assignment_id: id,
     assignment_title: input.title,
     assignment_description: input.description || null,
@@ -108,7 +101,7 @@ export async function updateAssignment(id: string, input: Omit<Parameters<typeof
 }
 
 export async function setAssignmentStatus(id: string, status: AssignmentStatus) {
-  await rpc('set_assignment_status', { target_assignment_id: id, next_status: status })
+  await gatewayRpc('set_assignment_status', { target_assignment_id: id, next_status: status })
 }
 
 export async function listAssignmentLessonOptions(classId: string): Promise<AssignmentLessonOption[]> {
@@ -128,7 +121,7 @@ export async function listAssignmentRoster(id: string): Promise<AssignmentRoster
 }
 
 export async function submitMyAssignment(id: string) {
-  const row = rows(await rpc('submit_my_assignment', { target_assignment_id: id }))[0]
+  const row = rows(await gatewayRpc('submit_my_assignment', { target_assignment_id: id }))[0]
   if (!row) throw new Error('The submission could not be completed.')
   return { id: text(row.submission_id), status: text(row.submission_status) as SubmissionStatus }
 }
@@ -158,7 +151,7 @@ export async function listSubmissionFiles(id: string): Promise<SubmissionFileRec
 }
 
 export async function reviewSubmission(id: string, action: 'reviewed' | 'revision_requested', feedback: string) {
-  await rpc('review_submission', {
+  await gatewayRpc('review_submission', {
     target_submission_id: id,
     review_action: action,
     feedback_message: feedback || null,
