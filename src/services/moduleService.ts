@@ -1,4 +1,3 @@
-import { neonClient } from '@/lib/neon'
 import { callGatewayRpc } from '@/lib/rpc'
 import type {
   CourseLessonRecord,
@@ -11,12 +10,6 @@ import type {
 } from '@/types'
 
 type RpcRow = Record<string, unknown>
-
-async function rpc<T extends RpcRow>(name: string, args?: Record<string, unknown>) {
-  const result = await neonClient.rpc(name, args)
-  if (result.error) throw result.error
-  return (Array.isArray(result.data) ? result.data : []) as T[]
-}
 
 async function gatewayRpc<T extends RpcRow>(name: string, args?: Record<string, unknown>) {
   const data = await callGatewayRpc<unknown>(name, args)
@@ -73,7 +66,7 @@ export async function getTeacherModule(moduleId: string) {
 }
 
 export async function createModule(classId: string, title: string, description: string) {
-  const row = (await rpc<{ module_id: string }>('create_module', {
+  const row = (await gatewayRpc<{ module_id: string }>('create_module', {
     target_class_id: classId, module_title: title, module_description: description || null,
   }))[0]
   if (!row?.module_id) throw new Error('Module identifier was not returned.')
@@ -81,21 +74,21 @@ export async function createModule(classId: string, title: string, description: 
 }
 
 export async function updateModule(moduleId: string, title: string, description: string, status: ModuleStatus) {
-  await rpc('update_module', {
+  await gatewayRpc('update_module', {
     target_module_id: moduleId, module_title: title,
     module_description: description || null, module_status: status,
   })
 }
 
 export async function setModuleLifecycle(moduleId: string, status: ModuleLifecycleStatus) {
-  await rpc('set_module_lifecycle', {
+  await gatewayRpc('set_module_lifecycle', {
     target_module_id: moduleId,
     requested_lifecycle_status: status,
   })
 }
 
 export async function reorderModule(moduleId: string, direction: 'up' | 'down') {
-  await rpc('reorder_module', { target_module_id: moduleId, move_direction: direction })
+  await gatewayRpc('reorder_module', { target_module_id: moduleId, move_direction: direction })
 }
 
 export async function listModuleInstructorOptions(moduleId: string): Promise<ModuleInstructorOption[]> {
@@ -106,13 +99,13 @@ export async function listModuleInstructorOptions(moduleId: string): Promise<Mod
 }
 
 export async function assignModuleInstructor(moduleId: string, teacherId: string) {
-  return (await rpc<{ outcome: string }>('assign_module_instructor', {
+  return (await gatewayRpc<{ outcome: string }>('assign_module_instructor', {
     target_module_id: moduleId, target_teacher_id: teacherId,
   }))[0]?.outcome ?? 'exists'
 }
 
 export async function removeModuleInstructor(moduleId: string, teacherId: string) {
-  await rpc('remove_module_instructor', { target_module_id: moduleId, target_teacher_id: teacherId })
+  await gatewayRpc('remove_module_instructor', { target_module_id: moduleId, target_teacher_id: teacherId })
 }
 
 export async function listTeacherModuleLessons(moduleId: string) {
@@ -126,7 +119,7 @@ export async function getTeacherLesson(lessonId: string) {
 }
 
 export async function createLesson(moduleId: string, title: string, description: string, lessonDate: string) {
-  const row = (await rpc<{ lesson_id: string }>('create_lesson', {
+  const row = (await gatewayRpc<{ lesson_id: string }>('create_lesson', {
     target_module_id: moduleId, lesson_title: title, lesson_description: description || null,
     target_lesson_date: lessonDate || null,
   }))[0]
@@ -135,14 +128,14 @@ export async function createLesson(moduleId: string, title: string, description:
 }
 
 export async function updateLesson(lessonId: string, title: string, description: string, lessonDate: string, status: LessonLifecycleStatus) {
-  await rpc('update_lesson', {
+  await gatewayRpc('update_lesson', {
     target_lesson_id: lessonId, lesson_title: title, lesson_description: description || null,
     target_lesson_date: lessonDate || null, lesson_status: status,
   })
 }
 
 export async function reorderLesson(lessonId: string, direction: 'up' | 'down') {
-  await rpc('reorder_lesson', { target_lesson_id: lessonId, move_direction: direction })
+  await gatewayRpc('reorder_lesson', { target_lesson_id: lessonId, move_direction: direction })
 }
 
 export async function listStudentClassModules(classId: string) {
@@ -178,7 +171,7 @@ export async function getStudentLessonVideo(lessonId: string) {
 }
 
 export async function setLessonYouTubeVideo(lessonId: string, youtubeUrl: string) {
-  const row = (await rpc<{ video_id: string; canonical_url: string }>('set_lesson_youtube_video', {
+  const row = (await gatewayRpc<{ video_id: string; canonical_url: string }>('set_lesson_youtube_video', {
     target_lesson_id: lessonId,
     youtube_url: youtubeUrl,
   }))[0]
@@ -187,5 +180,5 @@ export async function setLessonYouTubeVideo(lessonId: string, youtubeUrl: string
 }
 
 export async function removeLessonVideo(lessonId: string) {
-  await rpc('remove_lesson_video', { target_lesson_id: lessonId })
+  await gatewayRpc('remove_lesson_video', { target_lesson_id: lessonId })
 }

@@ -36,16 +36,13 @@ interface ModuleServiceModule {
 }
 
 const gatewayCalls: RpcCall[] = []
-const dataApiCalls: RpcCall[] = []
 const gatewayResponses = new Map<string, unknown>()
-const dataApiResponses = new Map<string, unknown>()
 let gatewayFailure: Error | null = null
 
 async function loadModuleService() {
   const source = await readFile(new URL('../src/services/moduleService.ts', import.meta.url), 'utf8')
   const executable = source
-    .replace("import { neonClient } from '@/lib/neon'", `const { neonClient, callGatewayRpc } = globalThis.__moduleServiceDeps`)
-    .replace("import { callGatewayRpc } from '@/lib/rpc'", '')
+    .replace("import { callGatewayRpc } from '@/lib/rpc'", `const { callGatewayRpc } = globalThis.__moduleServiceDeps`)
     .replace(/import type \{[\s\S]*?\} from '@\/types'\r?\n/, '')
   Object.assign(globalThis, {
     __moduleServiceDeps: {
@@ -53,12 +50,6 @@ async function loadModuleService() {
         gatewayCalls.push({ operation, params })
         if (gatewayFailure) throw gatewayFailure
         return gatewayResponses.get(operation)
-      },
-      neonClient: {
-        rpc: async (operation: string, params?: Record<string, unknown>) => {
-          dataApiCalls.push({ operation, params })
-          return { data: dataApiResponses.get(operation), error: null }
-        },
       },
     },
   })
@@ -76,9 +67,7 @@ const service = await loadModuleService()
 
 function reset() {
   gatewayCalls.length = 0
-  dataApiCalls.length = 0
   gatewayResponses.clear()
-  dataApiResponses.clear()
   gatewayFailure = null
 }
 
@@ -141,7 +130,6 @@ test('all eleven moduleService reads use exact gateway keys and parameters', asy
     { operation: 'get_teacher_lesson_video', params: { target_lesson_id: 'lesson-a' } },
     { operation: 'get_student_lesson_video', params: { target_lesson_id: 'lesson-a' } },
   ])
-  assert.equal(dataApiCalls.length, 0)
   assert.equal(gatewayCalls.some(({ params }) => Object.keys(params ?? {}).some((key) => /(?:user|actor)_id/.test(key))), false)
 })
 
@@ -153,25 +141,24 @@ test('gateway failures preserve missing-row behavior and never fall back', async
   gatewayFailure = expected
   await assert.rejects(service.getStudentLesson('lesson-a'), (error) => error === expected)
   assert.equal(gatewayCalls.length, 2)
-  assert.equal(dataApiCalls.length, 0)
 })
 
-test('all eleven moduleService mutations remain on the Data API transport', async () => {
+test('all eleven moduleService mutations use exact gateway keys, parameters, and response contracts', async () => {
   reset()
-  dataApiResponses.set('create_module', [{ module_id: 'created-module' }])
-  dataApiResponses.set('assign_module_instructor', [{ outcome: 'assigned' }])
-  dataApiResponses.set('create_lesson', [{ lesson_id: 'created-lesson' }])
-  dataApiResponses.set('set_lesson_youtube_video', [{ video_id: 'video-a', canonical_url: 'https://video.invalid/watch' }])
+  gatewayResponses.set('create_module', [{ module_id: 'created-module' }])
+  gatewayResponses.set('assign_module_instructor', [{ outcome: 'created' }])
+  gatewayResponses.set('create_lesson', [{ lesson_id: 'created-lesson' }])
+  gatewayResponses.set('set_lesson_youtube_video', [{ video_id: 'video-a', canonical_url: 'https://video.invalid/watch' }])
   for (const key of [
     'update_module', 'set_module_lifecycle', 'reorder_module', 'remove_module_instructor',
     'update_lesson', 'reorder_lesson', 'remove_lesson_video',
-  ]) dataApiResponses.set(key, [])
+  ]) gatewayResponses.set(key, null)
 
   assert.equal(await service.createModule('class-a', 'Module', ''), 'created-module')
   await service.updateModule('module-a', 'Module', '', 'active')
   await service.setModuleLifecycle('module-a', 'active')
   await service.reorderModule('module-a', 'down')
-  assert.equal(await service.assignModuleInstructor('module-a', 'teacher-a'), 'assigned')
+  assert.equal(await service.assignModuleInstructor('module-a', 'teacher-a'), 'created')
   await service.removeModuleInstructor('module-a', 'teacher-a')
   assert.equal(await service.createLesson('module-a', 'Lesson', '', ''), 'created-lesson')
   await service.updateLesson('lesson-a', 'Lesson', '', '', 'published')
@@ -181,12 +168,51 @@ test('all eleven moduleService mutations remain on the Data API transport', asyn
   })
   await service.removeLessonVideo('lesson-a')
 
-  assert.deepEqual(dataApiCalls.map(({ operation }) => operation), [
-    'create_module', 'update_module', 'set_module_lifecycle', 'reorder_module',
-    'assign_module_instructor', 'remove_module_instructor', 'create_lesson', 'update_lesson',
-    'reorder_lesson', 'set_lesson_youtube_video', 'remove_lesson_video',
+  assert.deepEqual(gatewayCalls, [
+    { operation: 'create_module', params: { target_class_id: 'class-a', module_title: 'Module', module_description: null } },
+    { operation: 'update_module', params: { target_module_id: 'module-a', module_title: 'Module', module_description: null, module_status: 'active' } },
+    { operation: 'set_module_lifecycle', params: { target_module_id: 'module-a', requested_lifecycle_status: 'active' } },
+    { operation: 'reorder_module', params: { target_module_id: 'module-a', move_direction: 'down' } },
+    { operation: 'assign_module_instructor', params: { target_module_id: 'module-a', target_teacher_id: 'teacher-a' } },
+    { operation: 'remove_module_instructor', params: { target_module_id: 'module-a', target_teacher_id: 'teacher-a' } },
+    { operation: 'create_lesson', params: { target_module_id: 'module-a', lesson_title: 'Lesson', lesson_description: null, target_lesson_date: null } },
+    { operation: 'update_lesson', params: { target_lesson_id: 'lesson-a', lesson_title: 'Lesson', lesson_description: null, target_lesson_date: null, lesson_status: 'published' } },
+    { operation: 'reorder_lesson', params: { target_lesson_id: 'lesson-a', move_direction: 'up' } },
+    { operation: 'set_lesson_youtube_video', params: { target_lesson_id: 'lesson-a', youtube_url: 'https://video.invalid/watch' } },
+    { operation: 'remove_lesson_video', params: { target_lesson_id: 'lesson-a' } },
   ])
-  assert.equal(gatewayCalls.length, 0)
+})
+
+test('all four M3 module and lesson mutations execute once for success and ambiguous failures', async () => {
+  const cases: Array<[string, () => Promise<unknown>, unknown]> = [
+    ['create_module', () => service.createModule('class-a', 'Module', ''), [{ module_id: 'created-module' }]],
+    ['reorder_module', () => service.reorderModule('module-a', 'up'), null],
+    ['create_lesson', () => service.createLesson('module-a', 'Lesson', '', ''), [{ lesson_id: 'created-lesson' }]],
+    ['reorder_lesson', () => service.reorderLesson('lesson-a', 'down'), null],
+  ]
+  for (const [operation, invoke, success] of cases) {
+    reset()
+    gatewayResponses.set(operation, success)
+    await invoke()
+    assert.equal(gatewayCalls.length, 1, `${operation} success`)
+    for (const failure of [
+      new Error('timeout'), new TypeError('network unavailable'),
+      Object.assign(new Error('database unavailable'), { code: 'DATABASE_UNAVAILABLE' }),
+      new Error('commit outcome unknown'),
+    ]) {
+      reset()
+      gatewayFailure = failure
+      await assert.rejects(invoke(), (error) => error === failure)
+      assert.equal(gatewayCalls.length, 1, `${operation} failure`)
+      assert.equal(gatewayCalls[0]?.operation, operation)
+    }
+  }
+})
+
+test('moduleService has no Data API transport, retry loop, or fallback path', async () => {
+  const source = await readFile(new URL('../src/services/moduleService.ts', import.meta.url), 'utf8')
+  assert.doesNotMatch(source, /neonClient|\.rpc\(|retry|fallback/i)
+  assert.equal(source.match(/callGatewayRpc<unknown>/g)?.length, 1)
 })
 
 test('moduleService contains no storage operation or duplicate transport', async () => {
