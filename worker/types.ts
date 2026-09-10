@@ -1,6 +1,7 @@
-export interface WorkerEnv {
+import type { GatewayEnv } from './gateway/types.ts'
+
+export interface WorkerEnv extends GatewayEnv {
   APP_ORIGIN: string
-  NEON_DATA_API_URL: string
   B2_KEY_ID: string
   B2_APPLICATION_KEY: string
   B2_BUCKET_NAME: string

@@ -6,8 +6,8 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import type { WorkerEnv } from '../types'
-import { buildAttachmentContentDisposition } from './contentDisposition'
+import type { WorkerEnv } from '../types.ts'
+import { buildAttachmentContentDisposition } from './contentDisposition.ts'
 
 const uploadExpirySeconds = 5 * 60
 const downloadExpirySeconds = 2 * 60

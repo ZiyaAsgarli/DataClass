@@ -20,10 +20,23 @@ interface FinalizeStorageOperation {
   finalize: (fileSize: number, etag: string | null) => Promise<unknown>
 }
 
+export class StorageReconciliationRequiredError extends Error {
+  readonly status = 503
+
+  constructor() {
+    super('The storage state requires reconciliation before this operation can continue.')
+    this.name = 'StorageReconciliationRequiredError'
+  }
+}
+
 export async function runDeleteStorageOperation(operation: DeleteStorageOperation) {
   const resource = await operation.authorize()
   await operation.deleteObject(resource.storage_path)
-  await operation.deleteMetadata()
+  try {
+    await operation.deleteMetadata()
+  } catch {
+    throw new StorageReconciliationRequiredError()
+  }
 }
 
 export async function runFinalizeStorageOperation(operation: FinalizeStorageOperation) {
@@ -33,7 +46,11 @@ export async function runFinalizeStorageOperation(operation: FinalizeStorageOper
     && Number(object.ContentLength) === Number(resource.file_size_bytes)
 
   if (sizeMatches) {
-    await operation.finalize(Number(object.ContentLength), object.ETag ?? null)
+    try {
+      await operation.finalize(Number(object.ContentLength), object.ETag ?? null)
+    } catch {
+      throw new StorageReconciliationRequiredError()
+    }
   }
 
   return { sizeMatches }

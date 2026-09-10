@@ -1,4 +1,4 @@
-import type { WorkerEnv } from '../types'
+import type { WorkerEnv } from '../types.ts'
 
 const allowedMethods = 'POST, DELETE, OPTIONS'
 const allowedHeaders = 'Authorization, Content-Type'
