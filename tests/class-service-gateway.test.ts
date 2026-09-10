@@ -28,17 +28,14 @@ interface ClassServiceModule {
 }
 
 const gatewayCalls: RpcCall[] = []
-const dataApiCalls: RpcCall[] = []
 const gatewayResponses = new Map<string, unknown>()
-const dataApiResponses = new Map<string, unknown>()
 let gatewayFailure: Error | null = null
 
 async function loadClassService() {
   const sourceUrl = new URL('../src/services/classService.ts', import.meta.url)
   const source = await readFile(sourceUrl, 'utf8')
   const executable = source
-    .replace("import { neonClient } from '@/lib/neon'", `const { neonClient, callGatewayRpc } = globalThis.__classServiceDeps`)
-    .replace("import { callGatewayRpc } from '@/lib/rpc'", '')
+    .replace("import { callGatewayRpc } from '@/lib/rpc'", `const { callGatewayRpc } = globalThis.__classServiceDeps`)
     .replace(/import type \{[\s\S]*?\} from '@\/types'\r?\n/, '')
 
   Object.assign(globalThis, {
@@ -47,12 +44,6 @@ async function loadClassService() {
         gatewayCalls.push({ operation, params })
         if (gatewayFailure) throw gatewayFailure
         return gatewayResponses.get(operation)
-      },
-      neonClient: {
-        rpc: async (operation: string, params?: Record<string, unknown>) => {
-          dataApiCalls.push({ operation, params })
-          return { data: dataApiResponses.get(operation), error: null }
-        },
       },
     },
   })
@@ -71,9 +62,7 @@ const service = await loadClassService()
 
 function reset() {
   gatewayCalls.length = 0
-  dataApiCalls.length = 0
   gatewayResponses.clear()
-  dataApiResponses.clear()
   gatewayFailure = null
 }
 
@@ -121,35 +110,35 @@ test('all eight classService reads use the gateway with exact keys and parameter
     { operation: 'get_class_instructors', params: { target_class_id: 'class-a' } },
     { operation: 'get_my_student_class_instructors', params: { target_class_id: 'class-a' } },
   ])
-  assert.equal(dataApiCalls.length, 0)
 })
 
-test('gateway errors propagate without a Data API fallback', async () => {
+test('gateway errors propagate with exactly one call and no fallback', async () => {
   reset()
   const expected = new Error('normalized gateway failure')
   gatewayFailure = expected
   await assert.rejects(service.getClassStudents('class-a'), (error) => error === expected)
   assert.equal(gatewayCalls.length, 1)
-  assert.equal(dataApiCalls.length, 0)
 })
 
-test('all six classService mutations remain on the Data API transport', async () => {
+test('all six classService mutations use exact gateway keys, parameters, and response contracts', async () => {
   reset()
-  dataApiResponses.set('create_class', [{ class_id: 'created-class' }])
-  dataApiResponses.set('update_owned_class', [])
-  dataApiResponses.set('create_class_invitations', [{ email: 'student.invalid', outcome: 'created' }])
-  dataApiResponses.set('revoke_class_invitation', [])
-  dataApiResponses.set('add_class_instructor_by_email', [{ outcome: 'added' }])
-  dataApiResponses.set('remove_class_instructor', [])
+  gatewayResponses.set('create_class', [{ class_id: 'created-class' }])
+  gatewayResponses.set('update_owned_class', null)
+  gatewayResponses.set('create_class_invitations', [{ email: 'student.invalid', outcome: 'created' }])
+  gatewayResponses.set('revoke_class_invitation', null)
+  gatewayResponses.set('add_class_instructor_by_email', [{ outcome: 'added' }])
+  gatewayResponses.set('remove_class_instructor', null)
 
   assert.equal(await service.createClass('Class', ''), 'created-class')
   await service.updateClass('class-a', 'Class', '', 'active')
-  await service.inviteStudents('class-a', ['student.invalid'])
+  assert.deepEqual(await service.inviteStudents('class-a', ['student.invalid']), [
+    { email: 'student.invalid', outcome: 'created' },
+  ])
   await service.revokeInvitation('invitation-a')
   assert.equal(await service.addInstructor('class-a', 'teacher.invalid'), 'added')
   await service.removeInstructor('class-a', 'teacher-a')
 
-  assert.deepEqual(dataApiCalls, [
+  assert.deepEqual(gatewayCalls, [
     { operation: 'create_class', params: { class_name: 'Class', class_description: null } },
     { operation: 'update_owned_class', params: {
       target_class_id: 'class-a', class_name: 'Class', class_description: null, class_status: 'active',
@@ -165,7 +154,33 @@ test('all six classService mutations remain on the Data API transport', async ()
       target_class_id: 'class-a', target_teacher_id: 'teacher-a',
     } },
   ])
-  assert.equal(gatewayCalls.length, 0)
+})
+
+test('M3 create_class is invoked once for success and every ambiguous failure', async () => {
+  for (const failure of [
+    new Error('timeout'),
+    new TypeError('network unavailable'),
+    Object.assign(new Error('database unavailable'), { code: 'DATABASE_UNAVAILABLE' }),
+    new Error('commit outcome unknown'),
+  ]) {
+    reset()
+    gatewayFailure = failure
+    await assert.rejects(service.createClass('Class', ''), (error) => error === failure)
+    assert.deepEqual(gatewayCalls, [{
+      operation: 'create_class', params: { class_name: 'Class', class_description: null },
+    }])
+  }
+
+  reset()
+  gatewayResponses.set('create_class', [{ class_id: 'created-class' }])
+  assert.equal(await service.createClass('Class', ''), 'created-class')
+  assert.equal(gatewayCalls.length, 1)
+})
+
+test('classService has no Data API transport, retry loop, or fallback path', async () => {
+  const source = await readFile(new URL('../src/services/classService.ts', import.meta.url), 'utf8')
+  assert.doesNotMatch(source, /neonClient|\.rpc\(|retry|fallback/i)
+  assert.equal(source.match(/callGatewayRpc<unknown>/g)?.length, 1)
 })
 
 test('classService contains no storage operation', async () => {

@@ -1,4 +1,3 @@
-import { neonClient } from '@/lib/neon'
 import { callGatewayRpc } from '@/lib/rpc'
 import type {
   ClassInstructor,
@@ -12,12 +11,6 @@ type RpcRow = Record<string, unknown>
 
 function rows<T extends RpcRow>(data: unknown): T[] {
   return Array.isArray(data) ? data as T[] : []
-}
-
-async function rpc<T extends RpcRow>(name: string, args?: Record<string, unknown>) {
-  const result = await neonClient.rpc(name, args)
-  if (result.error) throw result.error
-  return rows<T>(result.data)
 }
 
 async function gatewayRpc<T extends RpcRow>(name: string, args?: Record<string, unknown>) {
@@ -52,7 +45,7 @@ export async function listStudentClasses() {
 }
 
 export async function createClass(name: string, description: string) {
-  const result = await rpc<{ class_id: string }>('create_class', {
+  const result = await gatewayRpc<{ class_id: string }>('create_class', {
     class_name: name,
     class_description: description || null,
   })
@@ -61,7 +54,7 @@ export async function createClass(name: string, description: string) {
 }
 
 export async function updateClass(classId: string, name: string, description: string, status: string) {
-  await rpc('update_owned_class', {
+  await gatewayRpc('update_owned_class', {
     target_class_id: classId,
     class_name: name,
     class_description: description || null,
@@ -125,18 +118,18 @@ export async function getMyStudentClassInstructors(classId: string): Promise<Cla
 }
 
 export async function inviteStudents(classId: string, emails: string[]) {
-  return rpc<{ email: string; outcome: string }>('create_class_invitations', {
+  return gatewayRpc<{ email: string; outcome: string }>('create_class_invitations', {
     target_class_id: classId,
     invitation_emails: emails,
   })
 }
 
 export async function revokeInvitation(invitationId: string) {
-  await rpc('revoke_class_invitation', { target_invitation_id: invitationId })
+  await gatewayRpc('revoke_class_invitation', { target_invitation_id: invitationId })
 }
 
 export async function addInstructor(classId: string, email: string) {
-  const result = await rpc<{ outcome: string }>('add_class_instructor_by_email', {
+  const result = await gatewayRpc<{ outcome: string }>('add_class_instructor_by_email', {
     target_class_id: classId,
     teacher_email: email,
   })
@@ -144,7 +137,7 @@ export async function addInstructor(classId: string, email: string) {
 }
 
 export async function removeInstructor(classId: string, teacherId: string) {
-  await rpc('remove_class_instructor', {
+  await gatewayRpc('remove_class_instructor', {
     target_class_id: classId,
     target_teacher_id: teacherId,
   })
