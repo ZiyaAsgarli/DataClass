@@ -242,6 +242,7 @@ test('production Worker source has no Data API, retry, self-call, or byte-proxy 
   const storageSource = await readFile(new URL('../src/services/storageService.ts', import.meta.url), 'utf8')
   assert.doesNotMatch(workerSource, /callNeonRpc|NEON_DATA_API_URL|retry|fallback/i)
   assert.doesNotMatch(gatewaySource, /fetch\(|NEON_DATA_API_URL|retry|fallback/i)
-  assert.match(storageSource, /neonClient\.rpc/)
+  assert.match(storageSource, /callGatewayRpc<unknown>/)
+  assert.doesNotMatch(storageSource, /neonClient|\.rpc\(/)
   assert.doesNotMatch(workerSource, /GetObjectCommand|PutObjectCommand|request\.body.*B2|new Response\(.*body/s)
 })

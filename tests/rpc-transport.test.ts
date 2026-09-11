@@ -121,7 +121,8 @@ test('classService delegates gateway reads through the shared transport', () => 
   assert.match(source, /listStudentClasses[\s\S]*gatewayRpc\('list_my_student_classes'\)/)
 })
 
-test('storage service remains on its existing transport', () => {
+test('storage metadata reads delegate through the shared gateway transport', () => {
   const source = readFileSync(new URL('../src/services/storageService.ts', import.meta.url), 'utf8')
-  assert.doesNotMatch(source, /callGatewayRpc/)
+  assert.match(source, /callGatewayRpc<unknown>/)
+  assert.doesNotMatch(source, /neonClient|\.rpc\(/)
 })

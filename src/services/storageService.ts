@@ -1,4 +1,5 @@
-import { getCurrentNeonAuthToken, neonClient } from '@/lib/neon'
+import { getCurrentNeonAuthToken } from '@/lib/neon'
+import { callGatewayRpc } from '@/lib/rpc'
 import type { LessonResourceRecord } from '@/types'
 
 type RpcRow = Record<string, unknown>
@@ -38,10 +39,9 @@ function mapResource(row: RpcRow): LessonResourceRecord {
 
 export { mapResource }
 
-async function rpc(name: string, args: Record<string, unknown>) {
-  const result = await neonClient.rpc(name, args)
-  if (result.error) throw result.error
-  return (Array.isArray(result.data) ? result.data : []) as RpcRow[]
+async function gatewayRpc(name: string, args: Record<string, unknown>) {
+  const result = await callGatewayRpc<unknown>(name, args)
+  return (Array.isArray(result) ? result : []) as RpcRow[]
 }
 
 export function resourceExtension(fileName: string) {
@@ -80,11 +80,11 @@ async function workerRequest<T>(path: string, init: RequestInit) {
 }
 
 export async function listTeacherLessonResources(lessonId: string) {
-  return (await rpc('list_teacher_lesson_resources', { target_lesson_id: lessonId })).map(mapResource)
+  return (await gatewayRpc('list_teacher_lesson_resources', { target_lesson_id: lessonId })).map(mapResource)
 }
 
 export async function listStudentLessonResources(lessonId: string) {
-  return (await rpc('list_student_lesson_resources', { target_lesson_id: lessonId })).map(mapResource)
+  return (await gatewayRpc('list_student_lesson_resources', { target_lesson_id: lessonId })).map(mapResource)
 }
 
 interface UploadIntent {
@@ -157,11 +157,11 @@ export async function deleteLessonResource(resourceId: string) {
 }
 
 export async function listTeacherAssignmentResources(assignmentId: string) {
-  return (await rpc('list_teacher_assignment_resources', { target_assignment_id: assignmentId })).map(mapResource)
+  return (await gatewayRpc('list_teacher_assignment_resources', { target_assignment_id: assignmentId })).map(mapResource)
 }
 
 export async function listStudentAssignmentResources(assignmentId: string) {
-  return (await rpc('list_student_assignment_resources', { target_assignment_id: assignmentId })).map(mapResource)
+  return (await gatewayRpc('list_student_assignment_resources', { target_assignment_id: assignmentId })).map(mapResource)
 }
 
 export async function uploadAssignmentResource(assignmentId: string, file: File, onProgress: (percent: number) => void) {

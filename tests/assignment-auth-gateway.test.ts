@@ -219,9 +219,10 @@ test('assignmentService has no Data API transport, retry loop, or fallback path'
   assert.equal(source.match(/callGatewayRpc<T>/g)?.length, 1)
 })
 
-test('storageService remains unchanged and outside the assignment gateway path', async () => {
+test('storageService remains outside the assignment service transport path', async () => {
   const assignmentSource = await readFile(new URL('../src/services/assignmentService.ts', import.meta.url), 'utf8')
   const storageSource = await readFile(new URL('../src/services/storageService.ts', import.meta.url), 'utf8')
   assert.equal(assignmentSource.match(/callGatewayRpc</g)?.length, 1)
-  assert.doesNotMatch(storageSource, /callGatewayRpc/)
+  assert.equal(storageSource.match(/callGatewayRpc<unknown>/g)?.length, 1)
+  assert.doesNotMatch(storageSource, /neonClient|\.rpc\(/)
 })
